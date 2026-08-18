@@ -23,7 +23,7 @@ export const Navbar: React.FC = () => {
         {/* Brand & Main Links */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 group">
-            <span className="w-8 h-8 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-extrabold text-sm flex items-center justify-center tracking-tighter shadow-sm group-hover:scale-105 transition-transform">
+            <span className="w-8 h-8 rounded-lg bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center tracking-tighter shadow-sm group-hover:scale-105 transition-transform">
               SD
             </span>
             <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight text-base uppercase">

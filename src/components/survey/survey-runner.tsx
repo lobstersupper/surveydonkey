@@ -198,7 +198,7 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
 
       <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div
-          className="h-full bg-slate-900 dark:bg-indigo-500 transition-all duration-300"
+          className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-300"
           style={{ width: `${Math.max(5, progressPercent)}%` }}
         ></div>
       </div>

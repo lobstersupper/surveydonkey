@@ -91,7 +91,7 @@ export default async function HomePage() {
                           className={`h-full transition-all duration-300 ${
                             unlockStatus.isUnlocked
                               ? 'bg-emerald-600 dark:bg-emerald-500'
-                              : 'bg-indigo-600 dark:bg-indigo-500'
+                              : 'bg-blue-600 dark:bg-blue-500'
                           }`}
                           style={{ width: `${Math.max(5, unlockStatus.progressPercent)}%` }}
                         ></div>

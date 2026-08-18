@@ -30,6 +30,12 @@ export interface MediaAsset {
   uploadedAt: Date;
 }
 
+export interface VerificationToken {
+  identifier: string; // User email
+  token: string;      // 6-digit OTP code
+  expires: Date;
+}
+
 interface DatabaseSchema {
   users: User[];
   surveys: Survey[];
@@ -37,6 +43,7 @@ interface DatabaseSchema {
   responses: Response[];
   subscriptions: EmailSubscription[];
   mediaAssets: MediaAsset[];
+  verificationTokens: VerificationToken[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -101,6 +108,10 @@ class SurveyRepository {
             ...a,
             uploadedAt: new Date(a.uploadedAt),
           })),
+          verificationTokens: (parsed.verificationTokens || []).map((vt: VerificationToken) => ({
+            ...vt,
+            expires: new Date(vt.expires),
+          })),
         };
         return this.inMemoryCache;
       }
@@ -131,6 +142,7 @@ class SurveyRepository {
           uploadedAt: new Date('2026-01-15'),
         },
       ],
+      verificationTokens: [],
     };
 
     this.inMemoryCache = initialData;
@@ -152,6 +164,44 @@ class SurveyRepository {
   }
 
   private getDB(): DatabaseSchema {
+    if (fs.existsSync(DB_FILE)) {
+      try {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        this.inMemoryCache = {
+          users: (parsed.users || INITIAL_USERS).map((u: User) => ({
+            ...u,
+            createdAt: new Date(u.createdAt),
+            emailVerified: u.emailVerified ? new Date(u.emailVerified) : null,
+          })),
+          surveys: (parsed.surveys || INITIAL_SURVEYS).map((s: Survey) => ({
+            ...s,
+            createdAt: new Date(s.createdAt),
+          })),
+          questions: parsed.questions || INITIAL_QUESTIONS,
+          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response) => ({
+            ...r,
+            submittedAt: new Date(r.submittedAt),
+          })),
+          subscriptions: (parsed.subscriptions || []).map((sub: EmailSubscription) => ({
+            ...sub,
+            createdAt: new Date(sub.createdAt),
+          })),
+          mediaAssets: (parsed.mediaAssets || []).map((a: MediaAsset) => ({
+            ...a,
+            uploadedAt: new Date(a.uploadedAt),
+          })),
+          verificationTokens: (parsed.verificationTokens || []).map((vt: VerificationToken) => ({
+            ...vt,
+            expires: new Date(vt.expires),
+          })),
+        };
+        return this.inMemoryCache;
+      } catch (err) {
+        console.warn('Error reading db file in getDB:', err);
+      }
+    }
+
     if (!this.inMemoryCache) {
       return this.initDatabase();
     }
@@ -177,6 +227,7 @@ class SurveyRepository {
     email: string;
     password?: string;
     role?: 'superadmin' | 'creator' | 'respondent';
+    emailVerified?: Date | null;
     demographicData?: Record<string, unknown>;
   }): Promise<{ success: boolean; user?: User; error?: string }> {
     const db = this.getDB();
@@ -190,7 +241,7 @@ class SurveyRepository {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       name: data.name.trim(),
       email: normalizedEmail,
-      emailVerified: new Date(),
+      emailVerified: data.emailVerified !== undefined ? data.emailVerified : null,
       image: null,
       password: data.password || 'password123',
       role: data.role || 'creator',
@@ -202,6 +253,91 @@ class SurveyRepository {
     this.saveDatabase();
 
     return { success: true, user: newUser };
+  }
+
+  // --- Email Verification Tokens ---
+  async createVerificationCode(email: string, expiresInMinutes: number = 15): Promise<string> {
+    const db = this.getDB();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Remove any existing pending tokens for this email
+    db.verificationTokens = db.verificationTokens.filter(
+      (vt) => vt.identifier.toLowerCase() !== normalizedEmail
+    );
+
+    // Generate secure 6-digit numeric OTP code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+
+    db.verificationTokens.push({
+      identifier: normalizedEmail,
+      token: code,
+      expires,
+    });
+
+    this.saveDatabase();
+    return code;
+  }
+
+  async verifyEmailCode(
+    email: string,
+    code: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const db = this.getDB();
+    const normalizedEmail = email.toLowerCase().trim();
+    const cleanCode = code.trim();
+
+    const tokenEntry = db.verificationTokens.find(
+      (vt) => vt.identifier.toLowerCase() === normalizedEmail
+    );
+
+    if (!tokenEntry) {
+      return {
+        success: false,
+        error: 'No verification code found. Please request a new code.',
+      };
+    }
+
+    if (new Date() > new Date(tokenEntry.expires)) {
+      // Remove expired token
+      db.verificationTokens = db.verificationTokens.filter(
+        (vt) => vt.identifier.toLowerCase() !== normalizedEmail
+      );
+      this.saveDatabase();
+      return {
+        success: false,
+        error: 'Verification code has expired. Please request a new code.',
+      };
+    }
+
+    if (tokenEntry.token !== cleanCode) {
+      return { success: false, error: 'Incorrect verification code. Please check and try again.' };
+    }
+
+    // Code is valid: remove token and mark user account verified
+    db.verificationTokens = db.verificationTokens.filter(
+      (vt) => vt.identifier.toLowerCase() !== normalizedEmail
+    );
+
+    const user = db.users.find((u) => u.email?.toLowerCase() === normalizedEmail);
+    if (user) {
+      user.emailVerified = new Date();
+    }
+
+    this.saveDatabase();
+    return { success: true };
+  }
+
+  async setAccountVerified(email: string): Promise<boolean> {
+    const db = this.getDB();
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = db.users.find((u) => u.email?.toLowerCase() === normalizedEmail);
+    if (user) {
+      user.emailVerified = new Date();
+      this.saveDatabase();
+      return true;
+    }
+    return false;
   }
 
   // --- Surveys ---
