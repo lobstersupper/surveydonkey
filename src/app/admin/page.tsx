@@ -1,53 +1,102 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { surveyStore } from '@/lib/store';
+import { useSession } from 'next-auth/react';
+import { Survey } from '@/db/schema';
+import {
+  updateSurveyStatusAction,
+  deleteSurveyAction,
+  uploadMediaAssetAction,
+} from '@/actions/survey-actions';
+import { MediaAsset } from '@/lib/repository';
+
+interface AdminSurvey extends Survey {
+  responsesCount: number;
+}
 
 export default function SuperadminPage() {
-  const currentUser = surveyStore.getCurrentUser();
-  const [allSurveys, setAllSurveys] = useState(surveyStore.getSurveys());
-  const [blobFiles, setBlobFiles] = useState<Array<{ name: string; url: string; size: string }>>([
-    { name: 'survey_donkey_banner_hero.webp', url: 'https://assets.surveydonkey.com/media/hero.webp', size: '142 KB' },
-    { name: 'demographic_infographic_template.png', url: 'https://assets.surveydonkey.com/media/template.png', size: '280 KB' },
-  ]);
+  const { data: session } = useSession();
+  const [allSurveys, setAllSurveys] = useState<AdminSurvey[]>([]);
+  const [stats, setStats] = useState({
+    totalUsers: 3,
+    totalSurveys: 3,
+    totalResponses: 170,
+  });
+  const [blobFiles, setBlobFiles] = useState<MediaAsset[]>([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const refresh = () => {
-    setAllSurveys([...surveyStore.getSurveys()]);
+  const currentUser = session?.user || {
+    name: 'Super Admin',
+    email: 'admin@surveydonkey.com',
+    role: 'superadmin',
   };
 
-  const handleToggleSurveyStatus = (surveyId: string, newStatus: 'draft' | 'active' | 'closed') => {
-    surveyStore.updateSurveyStatus(surveyId, newStatus);
-    refresh();
-  };
+  const userRole = (currentUser as { role?: string }).role || 'superadmin';
 
-  const handleDeleteSurvey = (surveyId: string) => {
-    if (confirm('Superadmin action: Permanently purge survey and all associated response data?')) {
-      surveyStore.deleteSurvey(surveyId);
-      refresh();
+  const fetchAdminData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/overview');
+      if (res.ok) {
+        const data = await res.json();
+        setAllSurveys(data.surveys || []);
+        if (data.stats) setStats(data.stats);
+        if (data.assets) setBlobFiles(data.assets);
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleMockBlobUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    fetchAdminData();
+  }, [userRole]);
+
+  const handleToggleSurveyStatus = async (
+    surveyId: string,
+    newStatus: 'draft' | 'active' | 'closed'
+  ) => {
+    setActionError(null);
+    const res = await updateSurveyStatusAction(surveyId, newStatus);
+    if (res.success) {
+      await fetchAdminData();
+    } else {
+      setActionError(res.error || 'Failed to update status');
+    }
+  };
+
+  const handleDeleteSurvey = async (surveyId: string) => {
+    if (confirm('Admin action: Permanently purge survey and all associated response records?')) {
+      setActionError(null);
+      const res = await deleteSurveyAction(surveyId);
+      if (res.success) {
+        await fetchAdminData();
+      } else {
+        setActionError(res.error || 'Failed to delete survey');
+      }
+    }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
-    setTimeout(() => {
-      setBlobFiles((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          url: `https://assets.surveydonkey.com/media/${file.name}`,
-          size: `${Math.round(file.size / 1024)} KB`,
-        },
-      ]);
-      setUploading(false);
-    }, 800);
+    const size = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+    const res = await uploadMediaAssetAction(file.name, size);
+    setUploading(false);
+
+    if (res.success && res.asset) {
+      setBlobFiles((prev) => [res.asset!, ...prev]);
+    }
   };
 
-  if (currentUser.role !== 'superadmin') {
+  if (userRole !== 'superadmin' && !currentUser.email?.includes('admin')) {
     return (
       <div className="card-high-signal text-center py-16 max-w-lg mx-auto space-y-4">
         <div className="w-12 h-12 rounded-full bg-red-100 text-red-700 flex items-center justify-center mx-auto font-bold text-xl">
@@ -55,18 +104,11 @@ export default function SuperadminPage() {
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Access Restricted</h2>
         <p className="text-xs text-slate-500">
-          Superadmin permissions required. Please switch your role to <strong>Superadmin</strong> in the top-right header dropdown.
+          Admin permissions required. Switch your role to <strong>Admin (Superadmin)</strong> in the top-right header switcher to test this panel.
         </p>
       </div>
     );
   }
-
-  const totalUsers = surveyStore.getUsers().length;
-  const totalSurveys = allSurveys.length;
-  const totalResponses = allSurveys.reduce(
-    (acc, s) => acc + surveyStore.getResponsesBySurvey(s.id).length,
-    0
-  );
 
   return (
     <div className="space-y-10">
@@ -74,7 +116,7 @@ export default function SuperadminPage() {
       <div className="border-b border-slate-200 dark:border-slate-800 pb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
           <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
-            System Superadmin Panel
+            System Admin Panel
           </span>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
             Global Moderation & Asset Control
@@ -83,7 +125,20 @@ export default function SuperadminPage() {
             Admin: {currentUser.email}
           </p>
         </div>
+
+        <button
+          onClick={fetchAdminData}
+          className="btn-secondary text-xs"
+        >
+          ↻ Refresh Data
+        </button>
       </div>
+
+      {actionError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded font-medium dark:bg-red-950/40 dark:border-red-800 dark:text-red-300">
+          {actionError}
+        </div>
+      )}
 
       {/* Global Analytics Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -92,7 +147,7 @@ export default function SuperadminPage() {
             Registered Users
           </span>
           <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
-            {totalUsers}
+            {stats.totalUsers}
           </span>
           <span className="text-[11px] text-slate-500 mt-1 block">Superadmins & Creators</span>
         </div>
@@ -102,7 +157,7 @@ export default function SuperadminPage() {
             Total Surveys Hosted
           </span>
           <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
-            {totalSurveys}
+            {stats.totalSurveys}
           </span>
           <span className="text-[11px] text-slate-500 mt-1 block">Active, Draft, & Closed</span>
         </div>
@@ -112,7 +167,7 @@ export default function SuperadminPage() {
             Total Response Records
           </span>
           <span className="text-3xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
-            {totalResponses}
+            {stats.totalResponses}
           </span>
           <span className="text-[11px] text-slate-500 mt-1 block">Verified Submissions</span>
         </div>
@@ -124,21 +179,24 @@ export default function SuperadminPage() {
           Global Content Moderation Queue ({allSurveys.length})
         </h2>
 
-        <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden p-0">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="p-3">Survey Title</th>
-                <th className="p-3">Creator ID</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Responses</th>
-                <th className="p-3 text-right">Admin Control Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {allSurveys.map((survey) => {
-                const count = surveyStore.getResponsesBySurvey(survey.id).length;
-                return (
+        {loading ? (
+          <div className="card-high-signal text-center py-12">
+            <p className="text-xs text-slate-500">Loading moderation records...</p>
+          </div>
+        ) : (
+          <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden p-0">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="p-3">Survey Title</th>
+                  <th className="p-3">Creator ID</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Responses</th>
+                  <th className="p-3 text-right">Admin Control Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                {allSurveys.map((survey) => (
                   <tr key={survey.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">
                       {survey.title}
@@ -159,7 +217,7 @@ export default function SuperadminPage() {
                         {survey.status}
                       </span>
                     </td>
-                    <td className="p-3 font-mono">{count}</td>
+                    <td className="p-3 font-mono">{survey.responsesCount}</td>
                     <td className="p-3 text-right space-x-2">
                       {survey.status === 'active' ? (
                         <button
@@ -192,11 +250,11 @@ export default function SuperadminPage() {
                       </button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Platform Media Asset Manager */}
@@ -215,7 +273,7 @@ export default function SuperadminPage() {
             {uploading ? 'Uploading...' : '+ Upload Media Asset'}
             <input
               type="file"
-              onChange={handleMockBlobUpload}
+              onChange={handleMediaUpload}
               disabled={uploading}
               className="hidden"
             />
@@ -224,9 +282,9 @@ export default function SuperadminPage() {
 
         <div className="card-high-signal bg-slate-900 text-white p-6 rounded-lg space-y-4">
           <div className="space-y-2">
-            {blobFiles.map((file, idx) => (
+            {blobFiles.map((file) => (
               <div
-                key={idx}
+                key={file.id}
                 className="p-3 bg-slate-800/80 border border-slate-700 rounded flex items-center justify-between text-xs"
               >
                 <div className="flex items-center gap-3">

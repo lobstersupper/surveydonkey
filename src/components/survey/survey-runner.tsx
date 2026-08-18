@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { Survey, Question, QuestionOption } from '@/db/schema';
 import { getNextQuestionId } from '@/lib/survey-engine';
-import { surveyStore } from '@/lib/store';
 import { TurnstileWidget } from '@/components/turnstile-widget';
+import { submitResponseAction } from '@/actions/survey-actions';
 
 interface SurveyRunnerProps {
   survey: Survey;
@@ -58,6 +58,45 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
     setErrorMsg(null);
   };
 
+  // Submit Final Response to Server Action
+  const submitFinalResponse = async (finalAnswers: Record<string, string>) => {
+    setSubmitting(true);
+    setErrorMsg(null);
+
+    const result = await submitResponseAction({
+      surveyId: survey.id,
+      answers: finalAnswers,
+      fingerprintHash: fingerprintHash || `fp_fallback_${Date.now()}`,
+      turnstileToken,
+    });
+
+    setSubmitting(false);
+
+    if (!result.success) {
+      setErrorMsg(result.error || 'Submission blocked. Duplicate attempt detected.');
+      return;
+    }
+
+    // Trigger celebration confetti animation
+    try {
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+    } catch {
+      // Confetti fallback
+    }
+
+    setCompleted(true);
+
+    // Redirect to results after brief pause
+    setTimeout(() => {
+      router.push(`/surveys/${survey.id}/results`);
+      router.refresh();
+    }, 1200);
+  };
+
   // Advance to Next Question or Submit
   const handleNext = useCallback(() => {
     if (!currentQuestion || !selectedOptionId) {
@@ -92,7 +131,7 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
         submitFinalResponse(updatedAnswers);
       }
     }
-  }, [answers, currentQuestion, selectedOptionId, sortedQuestions]);
+  }, [answers, currentQuestion, selectedOptionId, sortedQuestions, fingerprintHash, turnstileToken]);
 
   // Go Back to Previous Question in Branching Path
   const handleBack = () => {
@@ -104,50 +143,6 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
     setCurrentQuestionIndex(prevIndex);
     const prevQId = sortedQuestions[prevIndex]?.id;
     setSelectedOptionId(answers[prevQId] || null);
-  };
-
-  // Submit Final Response to Store
-  const submitFinalResponse = async (finalAnswers: Record<string, string>) => {
-    setSubmitting(true);
-    setErrorMsg(null);
-
-    // Session cookie from browser
-    const sessionCookie = `sd_sess_client_${fingerprintHash}`;
-    const ipHash = `ip_hash_local_${fingerprintHash}`;
-
-    const result = surveyStore.submitResponse({
-      surveyId: survey.id,
-      answers: finalAnswers,
-      sessionCookie,
-      ipHash,
-      fingerprintHash,
-      turnstileScore: '1.0',
-    });
-
-    setSubmitting(false);
-
-    if (!result.success) {
-      setErrorMsg(result.error || 'Submission blocked. Duplicate attempt detected.');
-      return;
-    }
-
-    // Trigger celebration confetti animation
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch {
-      // Confetti fallback
-    }
-
-    setCompleted(true);
-
-    // Redirect to results after brief pause
-    setTimeout(() => {
-      router.push(`/surveys/${survey.id}/results`);
-    }, 1200);
   };
 
   // Keyboard Shortcuts (1-9 to select option, Enter to proceed, Escape/Backspace to go back)

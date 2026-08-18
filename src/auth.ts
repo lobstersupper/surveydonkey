@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { INITIAL_USERS } from '@/lib/mock-data';
+import { surveyRepository } from '@/lib/repository';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -12,10 +12,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email) return null;
-        const email = String(credentials.email).toLowerCase();
-        
-        // Find matching user from dataset
-        const user = INITIAL_USERS.find((u) => u.email?.toLowerCase() === email);
+        const email = String(credentials.email).toLowerCase().trim();
+
+        // 1. Look up user in persistent repository
+        const user = await surveyRepository.getUserByEmail(email);
         if (user) {
           return {
             id: user.id,
@@ -25,12 +25,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
 
-        // Demo fallback for instant sign-in
+        // 2. Fallback creation for quick sign-in in dev / test environments
+        const role = email.includes('admin')
+          ? 'superadmin'
+          : email.includes('sarah') || email.includes('respondent')
+          ? 'respondent'
+          : 'creator';
+
+        const name =
+          role === 'superadmin'
+            ? 'Super Admin'
+            : role === 'respondent'
+            ? 'Sarah Connor'
+            : email.split('@')[0];
+
         return {
           id: `usr_${Date.now()}`,
-          name: email.split('@')[0],
+          name: name.charAt(0).toUpperCase() + name.slice(1),
           email: email,
-          role: email.includes('admin') ? 'superadmin' : 'creator',
+          role: role,
         };
       },
     }),
@@ -39,13 +52,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as { role?: string }).role || 'creator';
+        token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { role?: string; id?: string }).role = token.role as string;
-        (session.user as { role?: string; id?: string }).id = token.sub as string;
+        (session.user as { role?: string; id?: string }).role = (token.role as string) || 'creator';
+        (session.user as { role?: string; id?: string }).id = (token.id as string) || (token.sub as string);
       }
       return session;
     },

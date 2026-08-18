@@ -1,32 +1,86 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { surveyStore } from '@/lib/store';
-import { checkResultsUnlockStatus } from '@/lib/results-unlock';
+import { useSession } from 'next-auth/react';
+import { checkResultsUnlockStatus, UnlockStatus } from '@/lib/results-unlock';
+import { Survey, Question } from '@/db/schema';
+import {
+  updateSurveyStatusAction,
+  deleteSurveyAction,
+  toggleResultsUnlockAction,
+} from '@/actions/survey-actions';
+
+interface SurveyWithStats extends Survey {
+  responsesCount: number;
+  questionsCount: number;
+  unlockStatus: UnlockStatus;
+}
 
 export default function CreatorDashboardPage() {
-  const currentUser = surveyStore.getCurrentUser();
-  const [surveys, setSurveys] = useState(surveyStore.getSurveysByCreator(currentUser.id));
+  const { data: session } = useSession();
+  const [surveys, setSurveys] = useState<SurveyWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const refreshSurveys = () => {
-    setSurveys([...surveyStore.getSurveysByCreator(currentUser.id)]);
+  const currentUser = session?.user || {
+    name: 'Alan Turing',
+    email: 'creator@surveydonkey.com',
+    role: 'creator',
+    id: 'user_creator_1',
   };
 
-  const handleStatusChange = (surveyId: string, status: 'draft' | 'active' | 'closed') => {
-    surveyStore.updateSurveyStatus(surveyId, status);
-    refreshSurveys();
+  const fetchCreatorSurveys = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/surveys/creator');
+      if (res.ok) {
+        const data = await res.json();
+        setSurveys(data.surveys || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch surveys:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleToggleUnlock = (surveyId: string) => {
-    surveyStore.toggleSurveyResultsUnlock(surveyId);
-    refreshSurveys();
+  useEffect(() => {
+    fetchCreatorSurveys();
+  }, [currentUser.email]);
+
+  const handleStatusChange = async (
+    surveyId: string,
+    newStatus: 'draft' | 'active' | 'closed'
+  ) => {
+    setActionError(null);
+    const res = await updateSurveyStatusAction(surveyId, newStatus);
+    if (res.success) {
+      await fetchCreatorSurveys();
+    } else {
+      setActionError(res.error || 'Failed to update status');
+    }
   };
 
-  const handleDelete = (surveyId: string) => {
-    if (confirm('Are you sure you want to delete this survey?')) {
-      surveyStore.deleteSurvey(surveyId);
-      refreshSurveys();
+  const handleToggleUnlock = async (surveyId: string) => {
+    setActionError(null);
+    const res = await toggleResultsUnlockAction(surveyId);
+    if (res.success) {
+      await fetchCreatorSurveys();
+    } else {
+      setActionError(res.error || 'Failed to toggle results release');
+    }
+  };
+
+  const handleDelete = async (surveyId: string) => {
+    if (confirm('Are you sure you want to permanently delete this survey and all responses?')) {
+      setActionError(null);
+      const res = await deleteSurveyAction(surveyId);
+      if (res.success) {
+        await fetchCreatorSurveys();
+      } else {
+        setActionError(res.error || 'Failed to delete survey');
+      }
     }
   };
 
@@ -42,7 +96,7 @@ export default function CreatorDashboardPage() {
             {currentUser.name}’s Workspace
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Account: {currentUser.email} • Role: {currentUser.role.toUpperCase()}
+            Account: {currentUser.email} • Role: {((currentUser as { role?: string }).role || 'creator').toUpperCase()}
           </p>
         </div>
 
@@ -50,6 +104,12 @@ export default function CreatorDashboardPage() {
           + Create New Survey
         </Link>
       </div>
+
+      {actionError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded font-medium dark:bg-red-950/40 dark:border-red-800 dark:text-red-300">
+          {actionError}
+        </div>
+      )}
 
       {/* 1 Active Survey Limit Monitor Banner */}
       <div className="card-high-signal bg-slate-900 text-white p-6 rounded-lg flex items-center justify-between flex-wrap gap-4">
@@ -72,11 +132,23 @@ export default function CreatorDashboardPage() {
 
       {/* Surveys List */}
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-          Your Created Surveys ({surveys.length})
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Your Created Surveys ({surveys.length})
+          </h2>
+          <button
+            onClick={fetchCreatorSurveys}
+            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          >
+            ↻ Refresh
+          </button>
+        </div>
 
-        {surveys.length === 0 ? (
+        {loading ? (
+          <div className="card-high-signal text-center py-12">
+            <p className="text-xs text-slate-500">Loading your workspace surveys...</p>
+          </div>
+        ) : surveys.length === 0 ? (
           <div className="card-high-signal text-center py-12">
             <p className="text-xs text-slate-500">You have not created any surveys yet.</p>
             <Link href="/dashboard/new" className="btn-primary text-xs mt-3 inline-block">
@@ -86,12 +158,7 @@ export default function CreatorDashboardPage() {
         ) : (
           <div className="space-y-4">
             {surveys.map((survey) => {
-              const responses = surveyStore.getResponsesBySurvey(survey.id);
-              const questions = surveyStore.getQuestionsBySurvey(survey.id);
-              const unlockStatus = checkResultsUnlockStatus(
-                survey.resultsUnlockConfig,
-                responses.length
-              );
+              const isUnlocked = survey.unlockStatus?.isUnlocked;
 
               return (
                 <div
@@ -123,7 +190,7 @@ export default function CreatorDashboardPage() {
                     </h3>
 
                     <p className="text-xs text-slate-500">
-                      {questions.length} Questions • {responses.length} Submissions • Unlock Rule:{' '}
+                      {survey.questionsCount} Questions • {survey.responsesCount} Submissions • Unlock Rule:{' '}
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
                         {survey.resultsUnlockConfig?.type}
                       </span>
@@ -151,12 +218,12 @@ export default function CreatorDashboardPage() {
                     <button
                       onClick={() => handleToggleUnlock(survey.id)}
                       className={`px-3 py-2 text-xs font-semibold rounded border transition-all ${
-                        unlockStatus.isUnlocked
+                        isUnlocked
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                           : 'border-slate-300 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                       }`}
                     >
-                      {unlockStatus.isUnlocked ? '✓ Unlocked' : '🔒 Release Results'}
+                      {isUnlocked ? '✓ Unlocked' : '🔒 Release Results'}
                     </button>
 
                     <Link href={`/surveys/${survey.id}`} className="btn-secondary text-xs">

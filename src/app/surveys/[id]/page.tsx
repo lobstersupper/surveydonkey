@@ -1,16 +1,19 @@
-'use client';
-
-import React, { use } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { surveyStore } from '@/lib/store';
+import { notFound } from 'next/navigation';
+import { surveyRepository } from '@/lib/repository';
 import { SurveyRunner } from '@/components/survey/survey-runner';
 
-export default function SurveyPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export const dynamic = 'force-dynamic';
 
-  const survey = surveyStore.getSurveyById(id);
-  const questions = surveyStore.getQuestionsBySurvey(id);
+export default async function SurveyPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
+  const survey = await surveyRepository.getSurveyById(id);
   if (!survey) {
     return (
       <div className="card-high-signal text-center py-16 max-w-lg mx-auto space-y-4">
@@ -22,6 +25,8 @@ export default function SurveyPage({ params }: { params: Promise<{ id: string }>
       </div>
     );
   }
+
+  const questions = await surveyRepository.getQuestionsBySurvey(id);
 
   return (
     <div className="space-y-8">

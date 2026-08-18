@@ -1,17 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { surveyStore } from '@/lib/store';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
-  const [currentUser, setCurrentUser] = useState(surveyStore.getCurrentUser());
+  const { data: session, status } = useSession();
 
-  const handleSwitchUser = (userId: string) => {
-    surveyStore.setCurrentUser(userId);
-    setCurrentUser(surveyStore.getCurrentUser());
+  const user = session?.user || {
+    name: 'Alan Turing',
+    email: 'creator@surveydonkey.com',
+    role: 'creator',
+  };
+
+  const currentRole = (user as { role?: string }).role || 'creator';
+
+  const handleRoleQuickSwitch = async (roleEmail: string) => {
+    await signIn('credentials', {
+      email: roleEmail,
+      password: 'password123',
+      redirect: false,
+    });
     window.location.reload();
   };
 
@@ -21,7 +32,7 @@ export const Navbar: React.FC = () => {
         {/* Brand */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-extrabold text-sm flex items-center justify-center tracking-tighter">
+            <span className="w-8 h-8 rounded bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-extrabold text-sm flex items-center justify-center tracking-tighter shadow-sm">
               SD
             </span>
             <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight text-base uppercase">
@@ -47,40 +58,60 @@ export const Navbar: React.FC = () => {
             >
               Creator Studio
             </Link>
-            {currentUser.role === 'superadmin' && (
+            {currentRole === 'superadmin' && (
               <Link
                 href="/admin"
                 className={`hover:text-slate-900 dark:hover:text-slate-100 ${
                   pathname === '/admin' ? 'text-slate-900 dark:text-white font-bold' : ''
                 }`}
               >
-                Superadmin Panel
+                Admin Panel
               </Link>
             )}
           </nav>
         </div>
 
-        {/* Role & Account Switcher */}
+        {/* Role & Account Controls */}
         <div className="flex items-center gap-3">
           <Link href="/dashboard/new" className="btn-primary text-xs hidden sm:inline-flex">
             + New Survey
           </Link>
 
-          {/* Demo User Switcher Dropdown */}
+          {/* Quick Role Switcher for seamless testing */}
           <div className="relative border border-slate-200 dark:border-slate-800 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1 flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Role:
             </span>
             <select
-              value={currentUser.id}
-              onChange={(e) => handleSwitchUser(e.target.value)}
+              value={
+                currentRole === 'superadmin'
+                  ? 'admin@surveydonkey.com'
+                  : currentRole === 'respondent'
+                  ? 'sarah@example.com'
+                  : 'creator@surveydonkey.com'
+              }
+              onChange={(e) => handleRoleQuickSwitch(e.target.value)}
               className="bg-transparent text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer"
             >
-              <option value="user_creator_1">Creator (Alan)</option>
-              <option value="user_admin">Superadmin (Admin)</option>
-              <option value="user_respondent_1">Respondent (Sarah)</option>
+              <option value="creator@surveydonkey.com">Creator (Alan)</option>
+              <option value="admin@surveydonkey.com">Admin (Superadmin)</option>
+              <option value="sarah@example.com">Respondent (Sarah)</option>
             </select>
           </div>
+
+          {status === 'authenticated' ? (
+            <button
+              onClick={() => signOut({ redirect: false }).then(() => window.location.reload())}
+              className="btn-secondary text-xs py-1 px-2.5"
+              title="Sign Out"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <Link href="/auth/signin" className="btn-secondary text-xs py-1 px-2.5">
+              Sign In
+            </Link>
+          )}
         </div>
       </div>
     </header>

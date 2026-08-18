@@ -28,3 +28,6 @@ next-env.d.ts
 # OS / IDE
 .DS_Store
 *.pem
+
+# local persistent database data
+/data/

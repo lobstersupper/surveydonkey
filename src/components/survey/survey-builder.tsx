@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { surveyStore } from '@/lib/store';
+import { useSession } from 'next-auth/react';
 import { ResultsUnlockConfig } from '@/db/schema';
+import { createSurveyAction } from '@/actions/survey-actions';
 
 interface QuestionDraft {
   tempId: string;
@@ -15,15 +16,15 @@ interface QuestionDraft {
 
 export const SurveyBuilder: React.FC = () => {
   const router = useRouter();
-  const currentUser = surveyStore.getCurrentUser();
-
-  const activeSurvey = surveyStore.getActiveSurveyByCreator(currentUser.id);
+  const { data: session } = useSession();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [unlockType, setUnlockType] = useState<'immediate' | 'threshold' | 'scheduled' | 'manual'>('threshold');
   const [thresholdCount, setThresholdCount] = useState<number>(50);
   const [unlockAtDate, setUnlockAtDate] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [questions, setQuestions] = useState<QuestionDraft[]>([
     {
@@ -39,16 +40,14 @@ export const SurveyBuilder: React.FC = () => {
     },
     {
       tempId: 'q_2',
-      text: 'Do you currently leverage autonomous AI coding agents?',
+      text: 'Do you currently leverage autonomous AI coding tools in your development workflow?',
       isDemographicFlag: false,
       options: [
         { id: 'opt_2_1', text: 'Yes, daily in production' },
-        { id: 'opt_2_2', text: 'No, evaluating security' },
+        { id: 'opt_2_2', text: 'No, evaluating security & code quality' },
       ],
     },
   ]);
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Add new question
   const addQuestion = () => {
@@ -83,7 +82,7 @@ export const SurveyBuilder: React.FC = () => {
   };
 
   // Handle Publish Survey
-  const handlePublish = (e: React.FormEvent) => {
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -97,6 +96,15 @@ export const SurveyBuilder: React.FC = () => {
       return;
     }
 
+    for (const q of questions) {
+      if (q.options.some((opt) => !opt.text.trim())) {
+        setErrorMsg('All answer options must have text.');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+
     const unlockConfig: ResultsUnlockConfig = {
       type: unlockType,
       thresholdCount: unlockType === 'threshold' ? thresholdCount : undefined,
@@ -104,16 +112,19 @@ export const SurveyBuilder: React.FC = () => {
       unlocked: unlockType === 'immediate',
     };
 
-    const res = surveyStore.createSurvey({
+    const res = await createSurveyAction({
       title,
       description,
-      creatorId: currentUser.id,
+      creatorId: session?.user?.id || 'user_creator_1',
       resultsUnlockConfig: unlockConfig,
       questions,
     });
 
-    if (res.success && res.survey) {
-      router.push(`/dashboard`);
+    setSubmitting(false);
+
+    if (res.success) {
+      router.push('/dashboard');
+      router.refresh();
     } else {
       setErrorMsg(res.error || 'Failed to create survey.');
     }
@@ -121,15 +132,13 @@ export const SurveyBuilder: React.FC = () => {
 
   return (
     <form onSubmit={handlePublish} className="max-w-3xl mx-auto space-y-8 pb-12">
-      {/* Platform Economics Notice if Creator already has an Active Survey */}
-      {activeSurvey && (
-        <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs leading-relaxed dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300">
-          <span className="font-bold uppercase tracking-wider block mb-1">
-            Active Survey Notice
-          </span>
-          You currently have an active survey (<strong>{activeSurvey.title}</strong>). Publishing this new survey will automatically move your existing active survey to <strong>Closed</strong> status.
-        </div>
-      )}
+      {/* Notice about active survey slot */}
+      <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs leading-relaxed dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300">
+        <span className="font-bold uppercase tracking-wider block mb-1">
+          Active Survey Slot Notice
+        </span>
+        Publishing a new active survey will automatically move any previous active survey you own to <strong>Closed</strong> status.
+      </div>
 
       {errorMsg && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded font-medium dark:bg-red-950/40 dark:border-red-800 dark:text-red-300">
@@ -151,7 +160,7 @@ export const SurveyBuilder: React.FC = () => {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Developer Tooling & Productivity Consensus 2026"
+            placeholder="e.g. Developer Tooling & Productivity Study 2026"
             className="w-full p-3 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900"
             required
           />
@@ -246,13 +255,28 @@ export const SurveyBuilder: React.FC = () => {
             />
           </div>
         )}
+
+        {unlockType === 'scheduled' && (
+          <div className="pt-2">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              Unlock Date & Time
+            </label>
+            <input
+              type="datetime-local"
+              value={unlockAtDate}
+              onChange={(e) => setUnlockAtDate(e.target.value)}
+              className="p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+              required
+            />
+          </div>
+        )}
       </div>
 
-      {/* Questions & Dynamic Logic Jumps Editor */}
+      {/* Questions & Logic Jumps Editor */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-            Questions & Logic Jumps ({questions.length})
+            Questions & Logic Branching ({questions.length})
           </h3>
           <button type="button" onClick={addQuestion} className="btn-secondary text-xs">
             + Add Question
@@ -290,7 +314,7 @@ export const SurveyBuilder: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-4 text-xs">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -298,6 +322,9 @@ export const SurveyBuilder: React.FC = () => {
                   onChange={(e) => {
                     const copy = [...questions];
                     copy[qIdx].isDemographicFlag = e.target.checked;
+                    if (e.target.checked && !copy[qIdx].demographicType) {
+                      copy[qIdx].demographicType = 'age';
+                    }
                     setQuestions(copy);
                   }}
                 />
@@ -305,6 +332,22 @@ export const SurveyBuilder: React.FC = () => {
                   Demographic Question
                 </span>
               </label>
+
+              {q.isDemographicFlag && (
+                <select
+                  value={q.demographicType || 'age'}
+                  onChange={(e) => {
+                    const copy = [...questions];
+                    copy[qIdx].demographicType = e.target.value;
+                    setQuestions(copy);
+                  }}
+                  className="p-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200"
+                >
+                  <option value="age">Age Cohort</option>
+                  <option value="country">Geographic Region</option>
+                  <option value="employment">Employment / Role</option>
+                </select>
+              )}
             </div>
 
             {/* Options List & Logic Jumps */}
@@ -363,8 +406,8 @@ export const SurveyBuilder: React.FC = () => {
       </div>
 
       <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-        <button type="submit" className="btn-primary">
-          Publish Survey →
+        <button type="submit" disabled={submitting} className="btn-primary">
+          {submitting ? 'Publishing Survey...' : 'Publish Survey →'}
         </button>
       </div>
     </form>

@@ -1,22 +1,22 @@
-'use client';
-
-import React, { use, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { surveyStore } from '@/lib/store';
+import { notFound } from 'next/navigation';
+import { surveyRepository } from '@/lib/repository';
 import { checkResultsUnlockStatus } from '@/lib/results-unlock';
 import { ConsensusDashboard } from '@/components/charts/consensus-dashboard';
 import { D3DemographicCluster } from '@/components/charts/d3-demographic-cluster';
+import { ResultsUnlockSubscriber } from '@/components/survey/results-unlock-subscriber';
 
-export default function SurveyResultsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export const dynamic = 'force-dynamic';
 
-  const survey = surveyStore.getSurveyById(id);
-  const questions = surveyStore.getQuestionsBySurvey(id);
-  const responses = surveyStore.getResponsesBySurvey(id);
+export default async function SurveyResultsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
-  const [emailAlert, setEmailAlert] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
-
+  const survey = await surveyRepository.getSurveyById(id);
   if (!survey) {
     return (
       <div className="card-high-signal text-center py-16 max-w-lg mx-auto space-y-4">
@@ -28,14 +28,10 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const unlockStatus = checkResultsUnlockStatus(survey.resultsUnlockConfig, responses.length);
+  const questions = await surveyRepository.getQuestionsBySurvey(id);
+  const responses = await surveyRepository.getResponsesBySurvey(id);
 
-  const handleSubscribeResendAlert = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (emailAlert.trim()) {
-      setEmailSent(true);
-    }
-  };
+  const unlockStatus = checkResultsUnlockStatus(survey.resultsUnlockConfig, responses.length);
 
   return (
     <div className="space-y-10">
@@ -56,7 +52,7 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
         </p>
       </div>
 
-      {/* LOCKED DELAYED GRATIFICATION BANNER */}
+      {/* LOCKED BANNER */}
       {!unlockStatus.isUnlocked ? (
         <div className="card-high-signal bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-8 rounded-lg max-w-2xl mx-auto space-y-6">
           <div className="flex items-center gap-3 text-amber-800 dark:text-amber-300">
@@ -87,30 +83,7 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Email Notification Signup */}
-          <div className="bg-white dark:bg-slate-900 p-4 rounded border border-amber-200 dark:border-amber-800/80 space-y-3">
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block uppercase tracking-wider">
-              Get Notified via Email When Unlocked
-            </span>
-            {emailSent ? (
-              <div className="p-2.5 bg-emerald-50 text-emerald-800 text-xs rounded border border-emerald-200 font-medium">
-                ✓ Notification active! We will email you the survey results when unlocked.
-              </div>
-            ) : (
-              <form onSubmit={handleSubscribeResendAlert} className="flex gap-2">
-                <input
-                  type="email"
-                  value={emailAlert}
-                  onChange={(e) => setEmailAlert(e.target.value)}
-                  placeholder="Enter email for unlock alert..."
-                  className="flex-1 p-2 text-xs border border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
-                  required
-                />
-                <button type="submit" className="btn-primary text-xs">
-                  Notify Me
-                </button>
-              </form>
-            )}
-          </div>
+          <ResultsUnlockSubscriber surveyId={survey.id} />
         </div>
       ) : (
         /* UNLOCKED FULL DASHBOARD */
