@@ -72,7 +72,7 @@ export const ConsensusDashboard: React.FC<ConsensusDashboardProps> = ({
       {demoQuestion && demoOptions.length > 0 && (
         <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-md flex items-center justify-between flex-wrap gap-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Filter Consensus Cohort:
+            Filter by Cohort:
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
             <button

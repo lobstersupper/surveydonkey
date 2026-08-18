@@ -47,7 +47,7 @@ export default function CreatorDashboardPage() {
         </div>
 
         <Link href="/dashboard/new" className="btn-primary text-xs">
-          + Create New Text Survey
+          + Create New Survey
         </Link>
       </div>
 
@@ -55,13 +55,13 @@ export default function CreatorDashboardPage() {
       <div className="card-high-signal bg-slate-900 text-white p-6 rounded-lg flex items-center justify-between flex-wrap gap-4">
         <div>
           <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider block">
-            Platform Economics & Anti-Spam Control
+            Survey Limits & Usage
           </span>
           <h3 className="text-base font-bold mt-1">
             Active Survey Status: {activeSurvey ? `"${activeSurvey.title}"` : 'None Active'}
           </h3>
           <p className="text-xs text-slate-300 mt-1">
-            Standard creators are limited to 1 active survey at a time to mitigate server load and content moderation risks.
+            Standard creators can publish 1 active survey at a time.
           </p>
         </div>
 

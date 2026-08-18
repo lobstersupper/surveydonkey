@@ -10,14 +10,14 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      {/* High-Signal Minimalist Hero */}
+      {/* Hero Section */}
       <div className="border-b border-slate-200 dark:border-slate-800 pb-8 space-y-3">
-        <span className="badge-minimal">High-Signal Consensus Platform</span>
+        <span className="badge-minimal">Community Surveys</span>
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
-          Zero-Fluff Public Surveys & Demographic Infographics
+          Public Surveys & Demographic Insights
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
-          Participate anonymously in text-only developer and tech consensus studies. Results unlock when response thresholds are satisfied.
+          Participate anonymously in community surveys and explore aggregated demographic insights when results unlock.
         </p>
       </div>
 
@@ -25,7 +25,7 @@ export default function HomePage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Active Community Consensus Surveys ({surveys.length})
+            Active Surveys ({surveys.length})
           </h2>
         </div>
 
@@ -46,7 +46,7 @@ export default function HomePage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-mono text-slate-400 uppercase">
-                      {questions.length} Text Questions
+                      {questions.length} Questions
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -55,7 +55,7 @@ export default function HomePage() {
                           : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                       }`}
                     >
-                      {unlockStatus.isUnlocked ? '✓ Results Unlocked' : '🔒 Locked (Delayed)'}
+                      {unlockStatus.isUnlocked ? '✓ Results Unlocked' : '🔒 Results Locked'}
                     </span>
                   </div>
 
@@ -101,7 +101,7 @@ export default function HomePage() {
                       href={`/surveys/${survey.id}/results`}
                       className="btn-secondary text-xs text-center"
                     >
-                      {unlockStatus.isUnlocked ? 'View Consensus' : 'Check Status'}
+                      {unlockStatus.isUnlocked ? 'View Results' : 'Check Status'}
                     </Link>
                   </div>
                 </div>

@@ -9,7 +9,7 @@ export default function NewSurveyPage() {
           Create New Survey
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Configure text-only questions, standard demographic flags, dynamic logic jumps, and results unlock rules.
+          Configure questions, demographic filters, branching logic, and results unlock rules.
         </p>
       </div>
 

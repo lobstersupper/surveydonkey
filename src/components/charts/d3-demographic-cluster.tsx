@@ -166,10 +166,10 @@ export const D3DemographicCluster: React.FC<D3DemographicClusterProps> = ({
       <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
         <div>
           <h3 className="text-sm font-semibold tracking-wide uppercase text-slate-400">
-            Demographic Distribution Infographic (D3.js)
+            Demographic Distribution
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Interactive cluster placement based on age cohort, geographic region, and opinion response alignment.
+            Visual breakdown of responses across age cohorts and geographic regions.
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs">

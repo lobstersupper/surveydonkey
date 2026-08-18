@@ -8,8 +8,8 @@ export default function SuperadminPage() {
   const currentUser = surveyStore.getCurrentUser();
   const [allSurveys, setAllSurveys] = useState(surveyStore.getSurveys());
   const [blobFiles, setBlobFiles] = useState<Array<{ name: string; url: string; size: string }>>([
-    { name: 'survey_donkey_banner_hero.webp', url: 'https://blob.vercel-storage.com/hero.webp', size: '142 KB' },
-    { name: 'demographic_infographic_template.png', url: 'https://blob.vercel-storage.com/template.png', size: '280 KB' },
+    { name: 'survey_donkey_banner_hero.webp', url: 'https://assets.surveydonkey.com/media/hero.webp', size: '142 KB' },
+    { name: 'demographic_infographic_template.png', url: 'https://assets.surveydonkey.com/media/template.png', size: '280 KB' },
   ]);
   const [uploading, setUploading] = useState(false);
 
@@ -39,7 +39,7 @@ export default function SuperadminPage() {
         ...prev,
         {
           name: file.name,
-          url: `https://blob.vercel-storage.com/${file.name}`,
+          url: `https://assets.surveydonkey.com/media/${file.name}`,
           size: `${Math.round(file.size / 1024)} KB`,
         },
       ]);
@@ -80,7 +80,7 @@ export default function SuperadminPage() {
             Global Moderation & Asset Control
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            System Admin: {currentUser.email} • Full Database Privileges Active
+            Admin: {currentUser.email}
           </p>
         </div>
       </div>
@@ -114,7 +114,7 @@ export default function SuperadminPage() {
           <span className="text-3xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
             {totalResponses}
           </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">Deduplicated & Fingerprinted</span>
+          <span className="text-[11px] text-slate-500 mt-1 block">Verified Submissions</span>
         </div>
       </div>
 
@@ -199,20 +199,20 @@ export default function SuperadminPage() {
         </div>
       </div>
 
-      {/* Exclusive Vercel Blob Storage Manager (Restricted to Superadmin only) */}
+      {/* Platform Media Asset Manager */}
       <div className="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Vercel Blob Media Upload Manager (Superadmin Exclusive)
+              Media & Asset Manager
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Strictly restricted to Superadmin role for platform assets & system infographics.
+              Manage platform media assets and survey images.
             </p>
           </div>
 
           <label className="btn-primary text-xs cursor-pointer">
-            {uploading ? 'Uploading...' : '+ Upload Asset to Blob'}
+            {uploading ? 'Uploading...' : '+ Upload Media Asset'}
             <input
               type="file"
               onChange={handleMockBlobUpload}

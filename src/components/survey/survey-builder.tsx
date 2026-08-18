@@ -125,9 +125,9 @@ export const SurveyBuilder: React.FC = () => {
       {activeSurvey && (
         <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs leading-relaxed dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300">
           <span className="font-bold uppercase tracking-wider block mb-1">
-            Platform Limit Notice (1 Active Survey Limit)
+            Active Survey Notice
           </span>
-          You currently have an active survey (<strong>{activeSurvey.title}</strong>). Publishing this new survey will automatically move your existing active survey to <strong>Closed</strong> status to maintain zero-spam community guidelines.
+          You currently have an active survey (<strong>{activeSurvey.title}</strong>). Publishing this new survey will automatically move your existing active survey to <strong>Closed</strong> status.
         </div>
       )}
 
@@ -145,7 +145,7 @@ export const SurveyBuilder: React.FC = () => {
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-            Title (Text Only)
+            Title
           </label>
           <input
             type="text"
@@ -165,16 +165,16 @@ export const SurveyBuilder: React.FC = () => {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            placeholder="Zero-fluff summary describing the scope of this survey..."
+            placeholder="Brief summary describing the scope of this survey..."
             className="w-full p-3 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900"
           ></textarea>
         </div>
       </div>
 
-      {/* Delayed Gratification Results Unlock Config */}
+      {/* Results Unlock Config */}
       <div className="card-high-signal space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-          Results Unlock Rules (Delayed Gratification)
+          Results Unlock Rules
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -302,7 +302,7 @@ export const SurveyBuilder: React.FC = () => {
                   }}
                 />
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  Standard Demographic Question Flag
+                  Demographic Question
                 </span>
               </label>
             </div>
@@ -310,7 +310,7 @@ export const SurveyBuilder: React.FC = () => {
             {/* Options List & Logic Jumps */}
             <div className="space-y-2 pt-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Options & Dynamic Logic Branching
+                Answer Options & Branching Logic
               </label>
               {q.options.map((opt, optIdx) => (
                 <div key={opt.id} className="flex items-center gap-2">

@@ -183,7 +183,7 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
           Response Recorded
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-          Your answers have been integrated into consensus calculations. Redirecting to results...
+          Your answers have been recorded. Redirecting to results...
         </p>
       </div>
     );

@@ -47,12 +47,12 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
           </Link>
           <span className="text-slate-300">•</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Consensus Results Dashboard
+            Survey Results & Insights
           </span>
         </div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{survey.title}</h1>
         <p className="text-xs text-slate-600 dark:text-slate-400 font-mono">
-          {responses.length} Aggregate Responses • Mode: {survey.resultsUnlockConfig?.type.toUpperCase()}
+          {responses.length} Total Responses
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
           <div className="flex items-center gap-3 text-amber-800 dark:text-amber-300">
             <span className="text-2xl">🔒</span>
             <div>
-              <h2 className="text-lg font-bold">Consensus Results Currently Locked</h2>
+              <h2 className="text-lg font-bold">Results Currently Locked</h2>
               <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-400">
                 {unlockStatus.reason}
               </p>
@@ -86,14 +86,14 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* Resend Email Notification Signup */}
+          {/* Email Notification Signup */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded border border-amber-200 dark:border-amber-800/80 space-y-3">
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block uppercase tracking-wider">
-              Get Notified via Email (Resend) When Unlocked
+              Get Notified via Email When Unlocked
             </span>
             {emailSent ? (
               <div className="p-2.5 bg-emerald-50 text-emerald-800 text-xs rounded border border-emerald-200 font-medium">
-                ✓ Notification active! We will email you the consensus report when unlocked.
+                ✓ Notification active! We will email you the survey results when unlocked.
               </div>
             ) : (
               <form onSubmit={handleSubscribeResendAlert} className="flex gap-2">
@@ -115,18 +115,18 @@ export default function SurveyResultsPage({ params }: { params: Promise<{ id: st
       ) : (
         /* UNLOCKED FULL DASHBOARD */
         <div className="space-y-12">
-          {/* Section 1: D3.js Interactive Demographic Cluster Infographic */}
+          {/* Section 1: Interactive Demographic Cluster */}
           <div className="space-y-3">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Interactive Demographic Cluster (D3.js)
+              Demographic Distribution
             </h2>
             <D3DemographicCluster questions={questions} responses={responses} />
           </div>
 
-          {/* Section 2: Recharts Consensus Metric Dashboard */}
+          {/* Section 2: Question Metrics Breakdown */}
           <div className="space-y-3">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Standard Dashboard Metrics (Recharts)
+              Responses Breakdown
             </h2>
             <ConsensusDashboard questions={questions} responses={responses} />
           </div>
