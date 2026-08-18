@@ -23,12 +23,7 @@ export default function CreatorDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const currentUser = session?.user || {
-    name: 'Alan Turing',
-    email: 'creator@surveydonkey.com',
-    role: 'creator',
-    id: 'user_creator_1',
-  };
+  const currentUser = session?.user;
 
   const fetchCreatorSurveys = async () => {
     try {
@@ -47,7 +42,7 @@ export default function CreatorDashboardPage() {
 
   useEffect(() => {
     fetchCreatorSurveys();
-  }, [currentUser.email]);
+  }, [currentUser?.email]);
 
   const handleStatusChange = async (
     surveyId: string,
@@ -93,16 +88,25 @@ export default function CreatorDashboardPage() {
         <div>
           <span className="badge-minimal">Creator Studio</span>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
-            {currentUser.name}’s Workspace
+            {currentUser ? `${currentUser.name}’s Workspace` : 'Creator Workspace'}
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Account: {currentUser.email} • Role: {((currentUser as { role?: string }).role || 'creator').toUpperCase()}
+            {currentUser
+              ? `Account: ${currentUser.email} • Role: ${((currentUser as { role?: string }).role || 'creator').toUpperCase()}`
+              : 'Guest Mode: You can build surveys freely. Sign in or register to publish.'}
           </p>
         </div>
 
-        <Link href="/dashboard/new" className="btn-primary text-xs">
-          + Create New Survey
-        </Link>
+        <div className="flex items-center gap-3">
+          {!currentUser && (
+            <Link href="/auth/signin" className="btn-secondary text-xs">
+              Sign In / Register
+            </Link>
+          )}
+          <Link href="/dashboard/new" className="btn-primary text-xs">
+            + Create New Survey
+          </Link>
+        </div>
       </div>
 
       {actionError && (

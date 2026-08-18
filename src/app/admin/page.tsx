@@ -28,13 +28,8 @@ export default function SuperadminPage() {
   const [uploading, setUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const currentUser = session?.user || {
-    name: 'Super Admin',
-    email: 'admin@surveydonkey.com',
-    role: 'superadmin',
-  };
-
-  const userRole = (currentUser as { role?: string }).role || 'superadmin';
+  const currentUser = session?.user;
+  const userRole = (currentUser as { role?: string } | undefined)?.role;
 
   const fetchAdminData = async () => {
     try {
@@ -54,24 +49,27 @@ export default function SuperadminPage() {
   };
 
   useEffect(() => {
-    fetchAdminData();
+    if (userRole === 'superadmin') {
+      fetchAdminData();
+    }
   }, [userRole]);
 
   const handleToggleSurveyStatus = async (
     surveyId: string,
-    newStatus: 'draft' | 'active' | 'closed'
+    currentStatus: string
   ) => {
+    const nextStatus = currentStatus === 'active' ? 'closed' : 'active';
     setActionError(null);
-    const res = await updateSurveyStatusAction(surveyId, newStatus);
+    const res = await updateSurveyStatusAction(surveyId, nextStatus);
     if (res.success) {
       await fetchAdminData();
     } else {
-      setActionError(res.error || 'Failed to update status');
+      setActionError(res.error || 'Failed to update survey status');
     }
   };
 
   const handleDeleteSurvey = async (surveyId: string) => {
-    if (confirm('Admin action: Permanently purge survey and all associated response records?')) {
+    if (confirm('Are you sure you want to permanently delete this survey?')) {
       setActionError(null);
       const res = await deleteSurveyAction(surveyId);
       if (res.success) {
@@ -96,16 +94,21 @@ export default function SuperadminPage() {
     }
   };
 
-  if (userRole !== 'superadmin' && !currentUser.email?.includes('admin')) {
+  if (userRole !== 'superadmin') {
     return (
       <div className="card-high-signal text-center py-16 max-w-lg mx-auto space-y-4">
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-700 flex items-center justify-center mx-auto font-bold text-xl">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 flex items-center justify-center mx-auto font-bold text-xl">
           🔒
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Access Restricted</h2>
         <p className="text-xs text-slate-500">
-          Admin permissions required. Switch your role to <strong>Admin (Superadmin)</strong> in the top-right header switcher to test this panel.
+          Superadmin permissions required. Please sign in with an authorized administrator account to access this panel.
         </p>
+        <div className="pt-2">
+          <Link href="/auth/signin" className="btn-secondary text-xs inline-block">
+            Sign In with Administrator Account
+          </Link>
+        </div>
       </div>
     );
   }
@@ -122,7 +125,7 @@ export default function SuperadminPage() {
             Global Moderation & Asset Control
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Admin: {currentUser.email}
+            Admin: {currentUser?.email}
           </p>
         </div>
 

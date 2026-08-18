@@ -6,7 +6,11 @@ import { checkResultsUnlockStatus } from '@/lib/results-unlock';
 export async function GET() {
   try {
     const session = await auth();
-    const creatorId = session?.user?.id || 'user_creator_1';
+    const creatorId = session?.user?.id;
+
+    if (!creatorId) {
+      return NextResponse.json({ surveys: [] });
+    }
 
     const surveys = await surveyRepository.getSurveysByCreator(creatorId);
 

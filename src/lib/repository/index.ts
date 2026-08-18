@@ -172,6 +172,38 @@ class SurveyRepository {
     return this.getDB().users.find((u) => u.email?.toLowerCase() === normalized) || null;
   }
 
+  async createUser(data: {
+    name: string;
+    email: string;
+    password?: string;
+    role?: 'superadmin' | 'creator' | 'respondent';
+    demographicData?: Record<string, unknown>;
+  }): Promise<{ success: boolean; user?: User; error?: string }> {
+    const db = this.getDB();
+    const normalizedEmail = data.email.toLowerCase().trim();
+
+    if (db.users.some((u) => u.email?.toLowerCase() === normalizedEmail)) {
+      return { success: false, error: 'An account with this email already exists.' };
+    }
+
+    const newUser: User = {
+      id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: data.name.trim(),
+      email: normalizedEmail,
+      emailVerified: new Date(),
+      image: null,
+      password: data.password || 'password123',
+      role: data.role || 'creator',
+      demographicData: data.demographicData || {},
+      createdAt: new Date(),
+    };
+
+    db.users.push(newUser);
+    this.saveDatabase();
+
+    return { success: true, user: newUser };
+  }
+
   // --- Surveys ---
   async getSurveys(): Promise<Survey[]> {
     return this.getDB().surveys.sort(

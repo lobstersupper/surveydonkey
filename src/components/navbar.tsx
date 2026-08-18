@@ -3,36 +3,27 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
-  const user = session?.user || {
-    name: 'Alan Turing',
-    email: 'creator@surveydonkey.com',
-    role: 'creator',
-  };
+  const user = session?.user;
+  const currentRole = (user as { role?: string } | undefined)?.role;
 
-  const currentRole = (user as { role?: string }).role || 'creator';
-
-  const handleRoleQuickSwitch = async (roleEmail: string) => {
-    await signIn('credentials', {
-      email: roleEmail,
-      password: 'password123',
-      redirect: false,
-    });
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
     window.location.reload();
   };
 
   return (
-    <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <header className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur sticky top-0 z-50 transition-colors">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Brand */}
+        {/* Brand & Main Links */}
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-extrabold text-sm flex items-center justify-center tracking-tighter shadow-sm">
+          <Link href="/" className="flex items-center gap-2 group">
+            <span className="w-8 h-8 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-extrabold text-sm flex items-center justify-center tracking-tighter shadow-sm group-hover:scale-105 transition-transform">
               SD
             </span>
             <span className="font-extrabold text-slate-900 dark:text-slate-100 tracking-tight text-base uppercase">
@@ -40,11 +31,11 @@ export const Navbar: React.FC = () => {
             </span>
           </Link>
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center gap-4 text-xs font-medium text-slate-600 dark:text-slate-400">
+          {/* Navigation Items */}
+          <nav className="hidden md:flex items-center gap-5 text-xs font-semibold text-slate-600 dark:text-slate-400">
             <Link
               href="/"
-              className={`hover:text-slate-900 dark:hover:text-slate-100 ${
+              className={`hover:text-slate-900 dark:hover:text-slate-100 transition-colors ${
                 pathname === '/' ? 'text-slate-900 dark:text-white font-bold' : ''
               }`}
             >
@@ -52,7 +43,7 @@ export const Navbar: React.FC = () => {
             </Link>
             <Link
               href="/dashboard"
-              className={`hover:text-slate-900 dark:hover:text-slate-100 ${
+              className={`hover:text-slate-900 dark:hover:text-slate-100 transition-colors ${
                 pathname === '/dashboard' ? 'text-slate-900 dark:text-white font-bold' : ''
               }`}
             >
@@ -61,7 +52,7 @@ export const Navbar: React.FC = () => {
             {currentRole === 'superadmin' && (
               <Link
                 href="/admin"
-                className={`hover:text-slate-900 dark:hover:text-slate-100 ${
+                className={`hover:text-slate-900 dark:hover:text-slate-100 transition-colors ${
                   pathname === '/admin' ? 'text-slate-900 dark:text-white font-bold' : ''
                 }`}
               >
@@ -71,46 +62,47 @@ export const Navbar: React.FC = () => {
           </nav>
         </div>
 
-        {/* Role & Account Controls */}
+        {/* Right Side Actions */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/new" className="btn-primary text-xs hidden sm:inline-flex">
+          <Link
+            href="/dashboard/new"
+            className="btn-primary text-xs hidden sm:inline-flex shadow-sm hover:shadow"
+          >
             + New Survey
           </Link>
 
-          {/* Quick Role Switcher for seamless testing */}
-          <div className="relative border border-slate-200 dark:border-slate-800 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1 flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Role:
-            </span>
-            <select
-              value={
-                currentRole === 'superadmin'
-                  ? 'admin@surveydonkey.com'
-                  : currentRole === 'respondent'
-                  ? 'sarah@example.com'
-                  : 'creator@surveydonkey.com'
-              }
-              onChange={(e) => handleRoleQuickSwitch(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer"
-            >
-              <option value="creator@surveydonkey.com">Creator (Alan)</option>
-              <option value="admin@surveydonkey.com">Admin (Superadmin)</option>
-              <option value="sarah@example.com">Respondent (Sarah)</option>
-            </select>
-          </div>
+          {status === 'authenticated' && user ? (
+            <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
+              {/* User Identity Chip */}
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                  {user.name ? user.name.charAt(0) : user.email?.charAt(0) || 'U'}
+                </div>
+                <div className="hidden lg:flex flex-col text-left">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight truncate max-w-[130px]">
+                    {user.name || user.email?.split('@')[0]}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    {currentRole === 'superadmin' ? 'Superadmin' : 'Creator'}
+                  </span>
+                </div>
+              </div>
 
-          {status === 'authenticated' ? (
-            <button
-              onClick={() => signOut({ redirect: false }).then(() => window.location.reload())}
-              className="btn-secondary text-xs py-1 px-2.5"
-              title="Sign Out"
-            >
-              Sign Out
-            </button>
+              {/* Sign Out Button */}
+              <button
+                onClick={handleSignOut}
+                className="btn-secondary text-xs py-1 px-2.5 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300 transition-colors"
+                title="Sign Out"
+              >
+                Sign Out
+              </button>
+            </div>
           ) : (
-            <Link href="/auth/signin" className="btn-secondary text-xs py-1 px-2.5">
-              Sign In
-            </Link>
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+              <Link href="/auth/signin" className="btn-secondary text-xs py-1.5 px-3">
+                Sign In
+              </Link>
+            </div>
           )}
         </div>
       </div>

@@ -3,7 +3,7 @@ import { User, Survey, Question, Response } from '@/db/schema';
 export const INITIAL_USERS: User[] = [
   {
     id: 'user_admin',
-    name: 'Super Admin',
+    name: 'Platform Admin',
     email: 'admin@surveydonkey.com',
     emailVerified: new Date(),
     image: null,
@@ -14,7 +14,7 @@ export const INITIAL_USERS: User[] = [
   },
   {
     id: 'user_creator_1',
-    name: 'Alan Turing',
+    name: 'Survey Creator',
     email: 'creator@surveydonkey.com',
     emailVerified: new Date(),
     image: null,
@@ -25,8 +25,8 @@ export const INITIAL_USERS: User[] = [
   },
   {
     id: 'user_respondent_1',
-    name: 'Sarah Connor',
-    email: 'sarah@example.com',
+    name: 'Sample Respondent',
+    email: 'respondent@surveydonkey.com',
     emailVerified: new Date(),
     image: null,
     password: 'password123',

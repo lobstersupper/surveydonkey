@@ -7,43 +7,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'email', placeholder: 'creator@surveydonkey.com' },
+        email: { label: 'Email', type: 'email', placeholder: 'user@example.com' },
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.email) return null;
         const email = String(credentials.email).toLowerCase().trim();
+        const password = credentials.password ? String(credentials.password) : '';
 
-        // 1. Look up user in persistent repository
+        // 1. Look up user in database
         const user = await surveyRepository.getUserByEmail(email);
-        if (user) {
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          };
+        if (!user) {
+          return null;
         }
 
-        // 2. Fallback creation for quick sign-in in dev / test environments
-        const role = email.includes('admin')
-          ? 'superadmin'
-          : email.includes('sarah') || email.includes('respondent')
-          ? 'respondent'
-          : 'creator';
-
-        const name =
-          role === 'superadmin'
-            ? 'Super Admin'
-            : role === 'respondent'
-            ? 'Sarah Connor'
-            : email.split('@')[0];
+        // 2. Validate password if user has a stored password
+        if (user.password && user.password !== password) {
+          return null;
+        }
 
         return {
-          id: `usr_${Date.now()}`,
-          name: name.charAt(0).toUpperCase() + name.slice(1),
-          email: email,
-          role: role,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
         };
       },
     }),

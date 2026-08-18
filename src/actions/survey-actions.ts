@@ -23,7 +23,14 @@ export interface CreateSurveyInput {
 export async function createSurveyAction(input: CreateSurveyInput) {
   try {
     const session = await auth();
-    const creatorId = session?.user?.id || input.creatorId || 'user_creator_1';
+    const creatorId = session?.user?.id;
+
+    if (!creatorId) {
+      return {
+        success: false,
+        error: 'Authentication required. Please create an account or sign in to publish your survey.',
+      };
+    }
 
     if (!input.title.trim()) {
       return { success: false, error: 'Survey title is required.' };
