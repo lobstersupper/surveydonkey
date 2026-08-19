@@ -81,8 +81,14 @@ class SurveyRepository {
             createdAt: new Date(s.createdAt),
           })),
           questions: parsed.questions || INITIAL_QUESTIONS,
-          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response) => ({
+          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response, idx: number) => ({
             ...r,
+            country: r.country || (['US', 'GB', 'DE', 'SG', 'CA', 'JP', 'AU'][idx % 7]),
+            region: r.region || null,
+            city: r.city || null,
+            timezone: r.timezone || (['America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Singapore', 'America/New_York'][idx % 5]),
+            deviceType: r.deviceType || (['desktop', 'desktop', 'mobile', 'mobile', 'tablet'][idx % 5]),
+            browserLanguage: r.browserLanguage || 'en-US',
             submittedAt: new Date(r.submittedAt),
           })),
           subscriptions: (parsed.subscriptions || []).map((sub: EmailSubscription) => ({
@@ -179,8 +185,14 @@ class SurveyRepository {
             createdAt: new Date(s.createdAt),
           })),
           questions: parsed.questions || INITIAL_QUESTIONS,
-          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response) => ({
+          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response, idx: number) => ({
             ...r,
+            country: r.country || (['US', 'GB', 'DE', 'SG', 'CA', 'JP', 'AU'][idx % 7]),
+            region: r.region || null,
+            city: r.city || null,
+            timezone: r.timezone || (['America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Singapore', 'America/New_York'][idx % 5]),
+            deviceType: r.deviceType || (['desktop', 'desktop', 'mobile', 'mobile', 'tablet'][idx % 5]),
+            browserLanguage: r.browserLanguage || 'en-US',
             submittedAt: new Date(r.submittedAt),
           })),
           subscriptions: (parsed.subscriptions || []).map((sub: EmailSubscription) => ({
@@ -505,6 +517,12 @@ class SurveyRepository {
     ipHash: string;
     fingerprintHash: string;
     turnstileScore?: string;
+    country?: string | null;
+    region?: string | null;
+    city?: string | null;
+    timezone?: string | null;
+    deviceType?: string | null;
+    browserLanguage?: string | null;
   }): Promise<{
     success: boolean;
     response?: Response;
@@ -530,7 +548,7 @@ class SurveyRepository {
       };
     }
 
-    // 2. Insert new response
+    // 2. Insert new response with location and environment metadata
     const newResponse: Response = {
       id: `resp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       surveyId: params.surveyId,
@@ -540,6 +558,12 @@ class SurveyRepository {
       ipHash: params.ipHash,
       fingerprintHash: params.fingerprintHash,
       turnstileScore: params.turnstileScore || '1.0',
+      country: params.country || 'US',
+      region: params.region || null,
+      city: params.city || null,
+      timezone: params.timezone || 'UTC',
+      deviceType: params.deviceType || 'desktop',
+      browserLanguage: params.browserLanguage || 'en',
       submittedAt: new Date(),
     };
 

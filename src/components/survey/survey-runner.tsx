@@ -29,24 +29,42 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [completed, setCompleted] = useState<boolean>(false);
 
-  // Generate lightweight client-side device fingerprint on load
-  useEffect(() => {
-    const rawFp = [
-      navigator.userAgent,
-      navigator.language,
-      screen.width,
-      screen.height,
-      new Date().getTimezoneOffset(),
-    ].join('||');
+  // Generate lightweight client-side device fingerprint and environment metadata on load
+  const [clientTimezone, setClientTimezone] = useState<string>('UTC');
+  const [browserLanguage, setBrowserLanguage] = useState<string>('en');
+  const [deviceType, setDeviceType] = useState<'desktop' | 'mobile' | 'tablet'>('desktop');
 
-    // Simple hash string
-    let hash = 0;
-    for (let i = 0; i < rawFp.length; i++) {
-      const char = rawFp.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash |= 0;
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      setClientTimezone(tz);
+      const lang = navigator.language || navigator.languages?.[0] || 'en';
+      setBrowserLanguage(lang);
+
+      const ua = navigator.userAgent || '';
+      const isTablet = /(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua);
+      const isMobile = /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(ua);
+      setDeviceType(isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop');
+
+      const rawFp = [
+        ua,
+        lang,
+        screen.width,
+        screen.height,
+        new Date().getTimezoneOffset(),
+      ].join('||');
+
+      // Simple hash string
+      let hash = 0;
+      for (let i = 0; i < rawFp.length; i++) {
+        const char = rawFp.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash |= 0;
+      }
+      setFingerprintHash(`fp_${Math.abs(hash)}`);
+    } catch {
+      // Fallback
     }
-    setFingerprintHash(`fp_${Math.abs(hash)}`);
   }, []);
 
   const currentQuestion = sortedQuestions[currentQuestionIndex];
@@ -68,6 +86,9 @@ export const SurveyRunner: React.FC<SurveyRunnerProps> = ({ survey, questions })
       answers: finalAnswers,
       fingerprintHash: fingerprintHash || `fp_fallback_${Date.now()}`,
       turnstileToken,
+      clientTimezone,
+      browserLanguage,
+      deviceType,
     });
 
     setSubmitting(false);

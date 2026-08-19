@@ -138,6 +138,12 @@ export const responses = pgTable('responses', {
   ipHash: text('ip_hash').notNull(),
   fingerprintHash: text('fingerprint_hash').notNull(),
   turnstileScore: text('turnstile_score').default('1.0'),
+  country: text('country').default('US'),
+  region: text('region'),
+  city: text('city'),
+  timezone: text('timezone').default('UTC'),
+  deviceType: text('device_type').default('desktop'),
+  browserLanguage: text('browser_language').default('en'),
   submittedAt: timestamp('submitted_at', { mode: 'date' }).defaultNow().notNull(),
 });
 

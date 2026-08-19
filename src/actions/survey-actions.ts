@@ -118,6 +118,12 @@ export interface SubmitResponseInput {
   answers: Record<string, string>;
   fingerprintHash: string;
   turnstileToken?: string | null;
+  clientTimezone?: string | null;
+  clientCountry?: string | null;
+  clientRegion?: string | null;
+  clientCity?: string | null;
+  deviceType?: 'desktop' | 'mobile' | 'tablet' | string | null;
+  browserLanguage?: string | null;
 }
 
 export async function submitResponseAction(input: SubmitResponseInput) {
@@ -131,6 +137,34 @@ export async function submitResponseAction(input: SubmitResponseInput) {
     const realIp = headerList.get('x-real-ip');
     const rawIp = (forwardedFor ? forwardedFor.split(',')[0] : realIp) || '127.0.0.1';
     const ipHash = hashIpAddress(rawIp.trim());
+
+    // Extract Edge Geolocation and Locale Headers (Vercel, Cloudflare, standard proxies)
+    const edgeCountry = headerList.get('x-vercel-ip-country') || headerList.get('cf-ipcountry');
+    const edgeRegion =
+      headerList.get('x-vercel-ip-country-region') || headerList.get('cf-region-code');
+    const edgeCity = headerList.get('x-vercel-ip-city') || headerList.get('cf-ipcity');
+    const edgeTimezone = headerList.get('x-vercel-ip-timezone') || headerList.get('cf-timezone');
+    const acceptLanguage = headerList.get('accept-language')?.split(',')[0]?.split(';')[0];
+
+    // Merge edge geo with client runtime metadata
+    const timezone = edgeTimezone || input.clientTimezone || 'UTC';
+
+    let resolvedCountry = edgeCountry || input.clientCountry;
+    if (!resolvedCountry || resolvedCountry === 'XX') {
+      if (timezone.includes('America/')) resolvedCountry = 'US';
+      else if (timezone.includes('Europe/London')) resolvedCountry = 'GB';
+      else if (timezone.includes('Europe/')) resolvedCountry = 'DE';
+      else if (timezone.includes('Asia/Tokyo')) resolvedCountry = 'JP';
+      else if (timezone.includes('Asia/Singapore') || timezone.includes('Asia/'))
+        resolvedCountry = 'SG';
+      else if (timezone.includes('Australia/')) resolvedCountry = 'AU';
+      else resolvedCountry = 'US';
+    }
+
+    const resolvedRegion = edgeRegion || input.clientRegion || null;
+    const resolvedCity = edgeCity || input.clientCity || null;
+    const resolvedDevice = input.deviceType || 'desktop';
+    const resolvedLanguage = input.browserLanguage || acceptLanguage || 'en';
 
     // Get or create session cookie
     const cookieStore = await cookies();
@@ -151,7 +185,10 @@ export async function submitResponseAction(input: SubmitResponseInput) {
     if (input.turnstileToken) {
       const verify = await verifyTurnstileToken(input.turnstileToken, rawIp);
       if (!verify.success) {
-        return { success: false, error: 'Bot verification check failed. Please refresh and try again.' };
+        return {
+          success: false,
+          error: 'Bot verification check failed. Please refresh and try again.',
+        };
       }
       turnstileScore = String(verify.score || 1.0);
     }
@@ -164,6 +201,12 @@ export async function submitResponseAction(input: SubmitResponseInput) {
       ipHash,
       fingerprintHash: input.fingerprintHash,
       turnstileScore,
+      country: resolvedCountry,
+      region: resolvedRegion,
+      city: resolvedCity,
+      timezone,
+      deviceType: resolvedDevice,
+      browserLanguage: resolvedLanguage,
     });
 
     if (res.success && res.response) {

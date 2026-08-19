@@ -202,6 +202,19 @@ function generateMockResponses(): Response[] {
   const impactOptions = ['opt_imp_2x', 'opt_imp_mod', 'opt_imp_neutral', 'opt_imp_neg'];
   const hesitationOptions = ['opt_hes_security', 'opt_hes_skills', 'opt_hes_job', 'opt_hes_none'];
 
+  const countryList = [
+    { country: 'US', region: 'California', city: 'San Francisco', timezone: 'America/Los_Angeles' },
+    { country: 'US', region: 'New York', city: 'New York City', timezone: 'America/New_York' },
+    { country: 'GB', region: 'England', city: 'London', timezone: 'Europe/London' },
+    { country: 'DE', region: 'Bavaria', city: 'Munich', timezone: 'Europe/Berlin' },
+    { country: 'SG', region: 'Central Region', city: 'Singapore', timezone: 'Asia/Singapore' },
+    { country: 'CA', region: 'Ontario', city: 'Toronto', timezone: 'America/Toronto' },
+    { country: 'JP', region: 'Kanto', city: 'Tokyo', timezone: 'Asia/Tokyo' },
+    { country: 'AU', region: 'New South Wales', city: 'Sydney', timezone: 'Australia/Sydney' },
+  ];
+
+  const devices: ('desktop' | 'mobile' | 'tablet')[] = ['desktop', 'desktop', 'desktop', 'mobile', 'mobile', 'tablet'];
+
   // Seed 128 responses for Survey 1
   for (let i = 1; i <= 128; i++) {
     const ageOpt = ageOptions[Math.floor((i * 3) % ageOptions.length)];
@@ -213,6 +226,9 @@ function generateMockResponses(): Response[] {
     const hesitationOpt = freqOpt === 'opt_ai_rarely' || freqOpt === 'opt_ai_never'
       ? hesitationOptions[Math.floor((i * 4) % hesitationOptions.length)]
       : hesitationOptions[3];
+
+    const geoData = countryList[i % countryList.length];
+    const deviceType = devices[i % devices.length];
 
     const answers: Record<string, string> = {
       q_demo_age: ageOpt,
@@ -231,12 +247,21 @@ function generateMockResponses(): Response[] {
       ipHash: `ip_hash_${(i * 1337) % 99999}`,
       fingerprintHash: `fp_hash_${(i * 8888) % 77777}`,
       turnstileScore: '1.0',
+      country: geoData.country,
+      region: geoData.region,
+      city: geoData.city,
+      timezone: geoData.timezone,
+      deviceType: deviceType,
+      browserLanguage: 'en-US',
       submittedAt: new Date(Date.now() - (128 - i) * 3600 * 1000),
     });
   }
 
   // Seed 42 responses for Survey 2
   for (let i = 1; i <= 42; i++) {
+    const geoData = countryList[(i + 3) % countryList.length];
+    const deviceType = devices[(i + 1) % devices.length];
+
     responses.push({
       id: `resp_rw_${i}`,
       surveyId: 'survey_remote_work',
@@ -250,6 +275,12 @@ function generateMockResponses(): Response[] {
       ipHash: `ip_hash_rw_${i}`,
       fingerprintHash: `fp_hash_rw_${i}`,
       turnstileScore: '1.0',
+      country: geoData.country,
+      region: geoData.region,
+      city: geoData.city,
+      timezone: geoData.timezone,
+      deviceType: deviceType,
+      browserLanguage: 'en-US',
       submittedAt: new Date(Date.now() - i * 7200 * 1000),
     });
   }

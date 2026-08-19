@@ -161,6 +161,12 @@ class SurveyStore {
     ipHash: string;
     fingerprintHash: string;
     turnstileScore?: string;
+    country?: string | null;
+    region?: string | null;
+    city?: string | null;
+    timezone?: string | null;
+    deviceType?: string | null;
+    browserLanguage?: string | null;
   }): { success: boolean; response?: Response; deduplication?: DeduplicationCheckResult; error?: string } {
     // 1. Strict Database-level Deduplication Check
     const dedup = checkDuplicateResponse(this.responses, {
@@ -189,6 +195,12 @@ class SurveyStore {
       ipHash: params.ipHash,
       fingerprintHash: params.fingerprintHash,
       turnstileScore: params.turnstileScore || '1.0',
+      country: params.country || 'US',
+      region: params.region || null,
+      city: params.city || null,
+      timezone: params.timezone || 'UTC',
+      deviceType: params.deviceType || 'desktop',
+      browserLanguage: params.browserLanguage || 'en',
       submittedAt: new Date(),
     };
 
