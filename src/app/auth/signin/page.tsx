@@ -318,6 +318,45 @@ export default function SignInPage() {
                 >
                   {loading ? 'Signing In...' : 'Sign In →'}
                 </button>
+
+                {/* Quick-Fill Demo Credentials */}
+                <div className="pt-3 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block text-center">
+                    Quick-Fill Test Credentials
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('creator@surveydonkey.com');
+                        setPassword('password123');
+                      }}
+                      className="py-1.5 px-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-center transition-colors"
+                    >
+                      Creator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('admin@surveydonkey.com');
+                        setPassword('password123');
+                      }}
+                      className="py-1.5 px-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-center transition-colors"
+                    >
+                      Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('respondent@surveydonkey.com');
+                        setPassword('password123');
+                      }}
+                      className="py-1.5 px-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-center transition-colors"
+                    >
+                      Voter
+                    </button>
+                  </div>
+                </div>
               </form>
             ) : (
               <form onSubmit={handleSignUp} className="space-y-4">
