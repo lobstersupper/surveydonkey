@@ -77,6 +77,10 @@ class SurveyStore {
       creatorId: surveyData.creatorId,
       title: surveyData.title,
       description: surveyData.description || '',
+      surveyType: 'poll',
+      visibility: 'public',
+      personalityArchetypes: [],
+      coinsReward: 10,
       status: initialStatus,
       resultsUnlockConfig: surveyData.resultsUnlockConfig,
       createdAt: new Date(),
@@ -191,6 +195,8 @@ class SurveyStore {
       surveyId: params.surveyId,
       userId: params.userId || null,
       answers: params.answers,
+      resultArchetypeId: null,
+      earnedCoins: 10,
       sessionCookie: params.sessionCookie,
       ipHash: params.ipHash,
       fingerprintHash: params.fingerprintHash,
@@ -201,6 +207,7 @@ class SurveyStore {
       timezone: params.timezone || 'UTC',
       deviceType: params.deviceType || 'desktop',
       browserLanguage: params.browserLanguage || 'en',
+      organicCohort: null,
       submittedAt: new Date(),
     };
 

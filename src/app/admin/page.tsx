@@ -22,6 +22,11 @@ export default function SuperadminPage() {
     totalUsers: 3,
     totalSurveys: 3,
     totalResponses: 170,
+    activeSurveysCount: 1,
+    totalCoinsInCirculation: 0,
+    identityClustersCount: 0,
+    personalityCount: 0,
+    pollCount: 3,
   });
   const [blobFiles, setBlobFiles] = useState<MediaAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,34 +103,32 @@ export default function SuperadminPage() {
     return (
       <div className="card-high-signal text-center py-16 max-w-lg mx-auto space-y-4">
         <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 flex items-center justify-center mx-auto font-bold text-xl">
-          🔒
+          !
         </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Access Restricted</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+          Admin Access Required
+        </h2>
         <p className="text-xs text-slate-500">
-          Superadmin permissions required. Please sign in with an authorized administrator account to access this panel.
+          You must be authenticated with the superadmin role to access system controls.
         </p>
-        <div className="pt-2">
-          <Link href="/auth/signin" className="btn-secondary text-xs inline-block">
-            Sign In with Administrator Account
-          </Link>
-        </div>
+        <Link href="/" className="btn-secondary text-xs inline-block">
+          Return to Public Feed
+        </Link>
       </div>
     );
   }
 
   return (
     <div className="space-y-10">
-      {/* Superadmin Header */}
+      {/* Header */}
       <div className="border-b border-slate-200 dark:border-slate-800 pb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
-            System Admin Panel
-          </span>
+          <span className="badge-minimal">Root Operations</span>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
-            Global Moderation & Asset Control
+            Superadmin Control Center
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Admin: {currentUser?.email}
+            Full platform governance: surveys, cross-survey organic clustering, {'{{coins}}'} economy, and media assets.
           </p>
         </div>
 
@@ -144,35 +147,49 @@ export default function SuperadminPage() {
       )}
 
       {/* Global Analytics Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-lg">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-            Registered Users
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            Registered Accounts
           </span>
-          <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
+          <span className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
             {stats.totalUsers}
           </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">Superadmins & Creators</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">Creators & Admins</span>
         </div>
 
         <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-lg">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-            Total Surveys Hosted
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            Total Surveys
           </span>
-          <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
+          <span className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
             {stats.totalSurveys}
           </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">Active, Draft, & Closed</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">
+            {stats.personalityCount || 0} Quizzes • {stats.pollCount || 0} Polls
+          </span>
         </div>
 
         <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-lg">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-            Total Response Records
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            Total Submissions
           </span>
-          <span className="text-3xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
+          <span className="text-2xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
             {stats.totalResponses}
           </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">Verified Submissions</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">Verified Responses</span>
+        </div>
+
+        <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-lg">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+            Circulating {'{{coins}}'}
+          </span>
+          <span className="text-2xl font-extrabold font-mono text-amber-600 dark:text-amber-400 mt-1 block">
+            🪙 {stats.totalCoinsInCirculation}
+          </span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">
+            {stats.identityClustersCount} Organic Clusters
+          </span>
         </div>
       </div>
 
@@ -188,74 +205,87 @@ export default function SuperadminPage() {
           </div>
         ) : (
           <div className="card-high-signal bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden p-0">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
-                <tr>
-                  <th className="p-3">Survey Title</th>
-                  <th className="p-3">Creator ID</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Responses</th>
-                  <th className="p-3 text-right">Admin Control Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                {allSurveys.map((survey) => (
-                  <tr key={survey.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">
-                      {survey.title}
-                    </td>
-                    <td className="p-3 font-mono text-[11px] text-slate-500">
-                      {survey.creatorId}
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          survey.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : survey.status === 'draft'
-                            ? 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-                        }`}
-                      >
-                        {survey.status}
-                      </span>
-                    </td>
-                    <td className="p-3 font-mono">{survey.responsesCount}</td>
-                    <td className="p-3 text-right space-x-2">
-                      {survey.status === 'active' ? (
-                        <button
-                          onClick={() => handleToggleSurveyStatus(survey.id, 'closed')}
-                          className="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded text-[10px] font-bold uppercase dark:bg-amber-950 dark:text-amber-300"
-                        >
-                          Suspend / Close
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleToggleSurveyStatus(survey.id, 'active')}
-                          className="px-2 py-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded text-[10px] font-bold uppercase dark:bg-emerald-950 dark:text-emerald-300"
-                        >
-                          Activate
-                        </button>
-                      )}
-
-                      <Link
-                        href={`/surveys/${survey.id}/results`}
-                        className="px-2 py-1 bg-slate-200 text-slate-800 hover:bg-slate-300 rounded text-[10px] font-bold uppercase dark:bg-slate-800 dark:text-slate-200 inline-block"
-                      >
-                        Audit Results
-                      </Link>
-
-                      <button
-                        onClick={() => handleDeleteSurvey(survey.id)}
-                        className="px-2 py-1 bg-red-600 text-white hover:bg-red-700 rounded text-[10px] font-bold uppercase"
-                      >
-                        Purge
-                      </button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3">Survey Title</th>
+                    <th className="p-3">Type</th>
+                    <th className="p-3">Visibility</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Responses</th>
+                    <th className="p-3 text-right">Admin Control Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                  {allSurveys.map((survey) => (
+                    <tr key={survey.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">
+                        <Link
+                          href={`/surveys/${survey.id}/results`}
+                          className="hover:underline hover:text-blue-600 dark:hover:text-blue-400"
+                        >
+                          {survey.title}
+                        </Link>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                          {survey.surveyType === 'personality' ? '🧠 Personality' : '📊 Poll'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800">
+                          {survey.visibility || 'public'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            survey.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : survey.status === 'draft'
+                              ? 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                          }`}
+                        >
+                          {survey.status}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono">{survey.responsesCount}</td>
+                      <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                        <Link
+                          href={`/surveys/${survey.id}/results`}
+                          className="px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[10px] font-bold uppercase dark:bg-blue-950/50 dark:text-blue-300 inline-block"
+                        >
+                          Results
+                        </Link>
+                        {survey.status === 'active' ? (
+                          <button
+                            onClick={() => handleToggleSurveyStatus(survey.id, 'closed')}
+                            className="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded text-[10px] font-bold uppercase dark:bg-amber-950 dark:text-amber-300"
+                          >
+                            Close
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleSurveyStatus(survey.id, 'active')}
+                            className="px-2 py-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded text-[10px] font-bold uppercase dark:bg-emerald-950 dark:text-emerald-300"
+                          >
+                            Activate
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteSurvey(survey.id)}
+                          className="px-2 py-1 bg-red-600 text-white hover:bg-red-700 rounded text-[10px] font-bold uppercase"
+                        >
+                          Purge
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

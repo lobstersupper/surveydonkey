@@ -21,6 +21,7 @@ export const users = pgTable('users', {
     employment?: string;
     [key: string]: unknown;
   }>(),
+  coinsBalance: integer('coins_balance').notNull().default(0),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
@@ -81,6 +82,14 @@ export interface ResultsUnlockConfig {
   unlocked?: boolean;
 }
 
+export interface PersonalityArchetype {
+  id: string;
+  title: string;
+  description: string;
+  badgeColor?: string;
+  traits?: string[];
+}
+
 export const surveys = pgTable('surveys', {
   id: text('id')
     .primaryKey()
@@ -90,9 +99,20 @@ export const surveys = pgTable('surveys', {
     .references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
+  surveyType: text('survey_type', { enum: ['poll', 'personality'] })
+    .notNull()
+    .default('poll'),
+  visibility: text('visibility', { enum: ['public', 'respondents_only', 'private'] })
+    .notNull()
+    .default('public'),
+  personalityArchetypes: jsonb('personality_archetypes')
+    .$type<PersonalityArchetype[]>()
+    .notNull()
+    .default([]),
   status: text('status', { enum: ['draft', 'active', 'closed'] })
     .notNull()
     .default('draft'),
+  coinsReward: integer('coins_reward').notNull().default(10),
   resultsUnlockConfig: jsonb('results_unlock_config')
     .$type<ResultsUnlockConfig>()
     .notNull()
@@ -100,11 +120,12 @@ export const surveys = pgTable('surveys', {
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
-// Question Option with Optional Dynamic Logic Jump
+// Question Option with Optional Dynamic Logic Jump & Personality Weights
 export interface QuestionOption {
   id: string;
   text: string;
   nextQuestionId?: string; // ID of target question to jump to, or 'END_SURVEY'
+  archetypeWeights?: Record<string, number>; // archetypeId -> points/weight
 }
 
 // Questions Table (Text-only + Demographic Flag + Logic Jump Options)
@@ -134,6 +155,8 @@ export const responses = pgTable('responses', {
   answers: jsonb('answers')
     .$type<Record<string, string>>() // questionId -> optionId
     .notNull(),
+  resultArchetypeId: text('result_archetype_id'),
+  earnedCoins: integer('earned_coins').notNull().default(0),
   sessionCookie: text('session_cookie').notNull(),
   ipHash: text('ip_hash').notNull(),
   fingerprintHash: text('fingerprint_hash').notNull(),
@@ -144,7 +167,41 @@ export const responses = pgTable('responses', {
   timezone: text('timezone').default('UTC'),
   deviceType: text('device_type').default('desktop'),
   browserLanguage: text('browser_language').default('en'),
+  organicCohort: jsonb('organic_cohort').$type<{
+    activityTier?: string;
+    deviceClass?: string;
+    geoRegion?: string;
+    isReturning?: boolean;
+    clusterId?: string;
+  }>(),
   submittedAt: timestamp('submitted_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
+// Cross-survey composite identity clusters
+export const identityClusters = pgTable('identity_clusters', {
+  clusterId: text('cluster_id').primaryKey(),
+  primaryIpHash: text('primary_ip_hash').notNull(),
+  fingerprintHashes: jsonb('fingerprint_hashes').$type<string[]>().notNull().default([]),
+  sessionCookies: jsonb('session_cookies').$type<string[]>().notNull().default([]),
+  surveyIds: jsonb('survey_ids').$type<string[]>().notNull().default([]),
+  totalResponsesCount: integer('total_responses_count').notNull().default(1),
+  firstSeenAt: timestamp('first_seen_at', { mode: 'date' }).defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
+// Coin Transactions Table (Ledger for {{coins}})
+export const coinTransactions = pgTable('coin_transactions', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  type: text('type', { enum: ['survey_completion', 'creator_milestone', 'bonus', 'daily_streak', 'perk_redemption'] }).notNull(),
+  description: text('description'),
+  surveyId: text('survey_id'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -155,3 +212,7 @@ export type Question = typeof questions.$inferSelect;
 export type NewQuestion = typeof questions.$inferInsert;
 export type Response = typeof responses.$inferSelect;
 export type NewResponse = typeof responses.$inferInsert;
+export type IdentityCluster = typeof identityClusters.$inferSelect;
+export type NewIdentityCluster = typeof identityClusters.$inferInsert;
+export type CoinTransaction = typeof coinTransactions.$inferSelect;
+export type NewCoinTransaction = typeof coinTransactions.$inferInsert;

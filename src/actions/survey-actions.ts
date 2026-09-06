@@ -4,19 +4,28 @@ import { revalidatePath } from 'next/cache';
 import { cookies, headers } from 'next/headers';
 import { auth } from '@/auth';
 import { surveyRepository } from '@/lib/repository';
-import { ResultsUnlockConfig } from '@/db/schema';
+import { ResultsUnlockConfig, PersonalityArchetype } from '@/db/schema';
 import { hashIpAddress, verifyTurnstileToken } from '@/lib/security';
 
 export interface CreateSurveyInput {
   title: string;
   description?: string;
   creatorId?: string;
+  surveyType?: 'poll' | 'personality';
+  visibility?: 'public' | 'respondents_only' | 'private';
+  personalityArchetypes?: PersonalityArchetype[];
+  coinsReward?: number;
   resultsUnlockConfig: ResultsUnlockConfig;
   questions: Array<{
     text: string;
     isDemographicFlag: boolean;
     demographicType?: string;
-    options: Array<{ id: string; text: string; nextQuestionId?: string }>;
+    options: Array<{
+      id: string;
+      text: string;
+      nextQuestionId?: string;
+      archetypeWeights?: Record<string, number>;
+    }>;
   }>;
 }
 
@@ -44,6 +53,10 @@ export async function createSurveyAction(input: CreateSurveyInput) {
       title: input.title,
       description: input.description,
       creatorId,
+      surveyType: input.surveyType || 'poll',
+      visibility: input.visibility || 'public',
+      personalityArchetypes: input.personalityArchetypes || [],
+      coinsReward: input.coinsReward ?? 10,
       resultsUnlockConfig: input.resultsUnlockConfig,
       questions: input.questions,
     });
@@ -124,6 +137,7 @@ export interface SubmitResponseInput {
   clientCity?: string | null;
   deviceType?: 'desktop' | 'mobile' | 'tablet' | string | null;
   browserLanguage?: string | null;
+  resultArchetypeId?: string | null;
 }
 
 export async function submitResponseAction(input: SubmitResponseInput) {
@@ -207,12 +221,18 @@ export async function submitResponseAction(input: SubmitResponseInput) {
       timezone,
       deviceType: resolvedDevice,
       browserLanguage: resolvedLanguage,
+      resultArchetypeId: input.resultArchetypeId || null,
     });
 
     if (res.success && res.response) {
       revalidatePath('/');
       revalidatePath(`/surveys/${input.surveyId}/results`);
-      return { success: true, responseId: res.response.id };
+      return {
+        success: true,
+        responseId: res.response.id,
+        earnedCoins: res.earnedCoins || 10,
+        resultArchetypeId: res.resultArchetypeId,
+      };
     }
 
     return {
@@ -222,6 +242,57 @@ export async function submitResponseAction(input: SubmitResponseInput) {
   } catch (error) {
     console.error('submitResponseAction error:', error);
     return { success: false, error: 'Internal error while processing survey response.' };
+  }
+}
+
+export async function getUserCoinsAction() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { balance: 0, transactions: [], canClaimDaily: false };
+    }
+    return await surveyRepository.getUserCoins(session.user.id);
+  } catch (error) {
+    console.error('getUserCoinsAction error:', error);
+    return { balance: 0, transactions: [], canClaimDaily: false };
+  }
+}
+
+export async function claimDailyBonusAction() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Must be signed in to claim daily streak rewards.' };
+    }
+    return await surveyRepository.claimDailyBonus(session.user.id);
+  } catch (error) {
+    console.error('claimDailyBonusAction error:', error);
+    return { success: false, error: 'Failed to claim daily bonus.' };
+  }
+}
+
+export async function redeemPerkAction(perkCost: number, perkTitle: string, surveyId?: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Must be signed in to redeem rewards.' };
+    }
+    return await surveyRepository.redeemPerk(session.user.id, perkCost, perkTitle, surveyId);
+  } catch (error) {
+    console.error('redeemPerkAction error:', error);
+    return { success: false, error: 'Failed to process perk redemption.' };
+  }
+}
+
+export async function getHotSurveysAction(
+  tab: 'hot' | 'newest' | 'personality' | 'poll' = 'hot',
+  searchQuery?: string
+) {
+  try {
+    return await surveyRepository.getHotSurveys(tab, searchQuery);
+  } catch (error) {
+    console.error('getHotSurveysAction error:', error);
+    return [];
   }
 }
 

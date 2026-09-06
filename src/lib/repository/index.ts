@@ -6,6 +6,9 @@ import {
   Question,
   Response,
   ResultsUnlockConfig,
+  PersonalityArchetype,
+  IdentityCluster,
+  CoinTransaction,
 } from '@/db/schema';
 import {
   INITIAL_USERS,
@@ -14,6 +17,8 @@ import {
   INITIAL_RESPONSES,
 } from '../mock-data';
 import { checkDuplicateResponse, DeduplicationCheckParams, DeduplicationCheckResult } from '../deduplication';
+import { calculatePersonalityOutcome } from '../survey-engine';
+import { checkResultsUnlockStatus } from '../results-unlock';
 
 export interface EmailSubscription {
   id: string;
@@ -44,6 +49,8 @@ interface DatabaseSchema {
   subscriptions: EmailSubscription[];
   mediaAssets: MediaAsset[];
   verificationTokens: VerificationToken[];
+  identityClusters: IdentityCluster[];
+  coinTransactions: CoinTransaction[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -51,6 +58,7 @@ const DB_FILE = path.join(DATA_DIR, 'surveydonkey-db.json');
 
 class SurveyRepository {
   private inMemoryCache: DatabaseSchema | null = null;
+  private lastLoadedMtime: number = 0;
 
   constructor() {
     this.initDatabase();
@@ -67,22 +75,53 @@ class SurveyRepository {
       }
 
       if (fs.existsSync(DB_FILE)) {
+        try {
+          this.lastLoadedMtime = fs.statSync(DB_FILE).mtimeMs;
+        } catch {
+          this.lastLoadedMtime = Date.now();
+        }
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
         // Revive date objects
+        const existingSurveyIds = new Set((parsed.surveys || []).map((s: any) => s.id));
+        const mergedSurveys = [
+          ...(parsed.surveys || []),
+          ...INITIAL_SURVEYS.filter((s) => !existingSurveyIds.has(s.id)),
+        ];
+
+        const existingQuestionIds = new Set((parsed.questions || []).map((q: any) => q.id));
+        const mergedQuestions = [
+          ...(parsed.questions || []),
+          ...INITIAL_QUESTIONS.filter((q) => !existingQuestionIds.has(q.id)),
+        ];
+
+        const existingResponseIds = new Set((parsed.responses || []).map((r: any) => r.id));
+        const mergedResponses = [
+          ...(parsed.responses || []),
+          ...INITIAL_RESPONSES.filter((r) => !existingResponseIds.has(r.id)),
+        ];
+
         this.inMemoryCache = {
           users: (parsed.users || INITIAL_USERS).map((u: User) => ({
             ...u,
+            coinsBalance: u.coinsBalance ?? 0,
             createdAt: new Date(u.createdAt),
             emailVerified: u.emailVerified ? new Date(u.emailVerified) : null,
           })),
-          surveys: (parsed.surveys || INITIAL_SURVEYS).map((s: Survey) => ({
+          surveys: mergedSurveys.map((s: Survey) => ({
             ...s,
+            surveyType: s.surveyType || 'poll',
+            visibility: s.visibility || 'public',
+            personalityArchetypes: s.personalityArchetypes || [],
+            coinsReward: s.coinsReward ?? 10,
             createdAt: new Date(s.createdAt),
           })),
-          questions: parsed.questions || INITIAL_QUESTIONS,
-          responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response, idx: number) => ({
+          questions: mergedQuestions,
+          responses: mergedResponses.map((r: Response, idx: number) => ({
             ...r,
+            resultArchetypeId: r.resultArchetypeId || null,
+            earnedCoins: r.earnedCoins ?? 0,
+            organicCohort: r.organicCohort || null,
             country: r.country || (['US', 'GB', 'DE', 'SG', 'CA', 'JP', 'AU'][idx % 7]),
             region: r.region || null,
             city: r.city || null,
@@ -118,7 +157,17 @@ class SurveyRepository {
             ...vt,
             expires: new Date(vt.expires),
           })),
+          identityClusters: (parsed.identityClusters || []).map((ic: IdentityCluster) => ({
+            ...ic,
+            firstSeenAt: new Date(ic.firstSeenAt),
+            lastSeenAt: new Date(ic.lastSeenAt),
+          })),
+          coinTransactions: (parsed.coinTransactions || []).map((ct: CoinTransaction) => ({
+            ...ct,
+            createdAt: new Date(ct.createdAt),
+          })),
         };
+        this.saveDatabase();
         return this.inMemoryCache;
       }
     } catch (err) {
@@ -149,6 +198,8 @@ class SurveyRepository {
         },
       ],
       verificationTokens: [],
+      identityClusters: [],
+      coinTransactions: [],
     };
 
     this.inMemoryCache = initialData;
@@ -163,30 +214,59 @@ class SurveyRepository {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.inMemoryCache, null, 2), 'utf-8');
+      const tmpFile = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(this.inMemoryCache, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, DB_FILE);
+      try {
+        this.lastLoadedMtime = fs.statSync(DB_FILE).mtimeMs;
+      } catch {
+        this.lastLoadedMtime = Date.now();
+      }
     } catch (err) {
       console.error('Failed to write database file:', err);
     }
   }
 
   private getDB(): DatabaseSchema {
+    // If memory cache exists and file hasn't changed on disk, return cache immediately
+    if (this.inMemoryCache && fs.existsSync(DB_FILE)) {
+      try {
+        const stat = fs.statSync(DB_FILE);
+        if (stat.mtimeMs <= this.lastLoadedMtime) {
+          return this.inMemoryCache;
+        }
+      } catch {
+        return this.inMemoryCache;
+      }
+    }
+
     if (fs.existsSync(DB_FILE)) {
       try {
+        const stat = fs.statSync(DB_FILE);
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
+        this.lastLoadedMtime = stat.mtimeMs;
         this.inMemoryCache = {
           users: (parsed.users || INITIAL_USERS).map((u: User) => ({
             ...u,
+            coinsBalance: u.coinsBalance ?? 0,
             createdAt: new Date(u.createdAt),
             emailVerified: u.emailVerified ? new Date(u.emailVerified) : null,
           })),
           surveys: (parsed.surveys || INITIAL_SURVEYS).map((s: Survey) => ({
             ...s,
+            surveyType: s.surveyType || 'poll',
+            visibility: s.visibility || 'public',
+            personalityArchetypes: s.personalityArchetypes || [],
+            coinsReward: s.coinsReward ?? 10,
             createdAt: new Date(s.createdAt),
           })),
           questions: parsed.questions || INITIAL_QUESTIONS,
           responses: (parsed.responses || INITIAL_RESPONSES).map((r: Response, idx: number) => ({
             ...r,
+            resultArchetypeId: r.resultArchetypeId || null,
+            earnedCoins: r.earnedCoins ?? 0,
+            organicCohort: r.organicCohort || null,
             country: r.country || (['US', 'GB', 'DE', 'SG', 'CA', 'JP', 'AU'][idx % 7]),
             region: r.region || null,
             city: r.city || null,
@@ -207,10 +287,22 @@ class SurveyRepository {
             ...vt,
             expires: new Date(vt.expires),
           })),
+          identityClusters: (parsed.identityClusters || []).map((ic: IdentityCluster) => ({
+            ...ic,
+            firstSeenAt: new Date(ic.firstSeenAt),
+            lastSeenAt: new Date(ic.lastSeenAt),
+          })),
+          coinTransactions: (parsed.coinTransactions || []).map((ct: CoinTransaction) => ({
+            ...ct,
+            createdAt: new Date(ct.createdAt),
+          })),
         };
         return this.inMemoryCache;
       } catch (err) {
         console.warn('Error reading db file in getDB:', err);
+        if (this.inMemoryCache) {
+          return this.inMemoryCache;
+        }
       }
     }
 
@@ -258,6 +350,7 @@ class SurveyRepository {
       password: data.password || 'password123',
       role: data.role || 'creator',
       demographicData: data.demographicData || {},
+      coinsBalance: 50,
       createdAt: new Date(),
     };
 
@@ -361,7 +454,78 @@ class SurveyRepository {
 
   async getActiveSurveys(): Promise<Survey[]> {
     const surveys = await this.getSurveys();
-    return surveys.filter((s) => s.status === 'active');
+    return surveys.filter((s) => s.status === 'active' && s.visibility !== 'private');
+  }
+
+  async getHotSurveys(
+    tab: 'hot' | 'newest' | 'personality' | 'poll' = 'hot',
+    searchQuery?: string
+  ): Promise<
+    Array<
+      Survey & {
+        responsesCount: number;
+        questionsCount: number;
+        unlockStatus: any;
+        isHot?: boolean;
+        score: number;
+      }
+    >
+  > {
+    const db = this.getDB();
+    const activeSurveys = db.surveys.filter(
+      (s) => s.status === 'active' && s.visibility !== 'private'
+    );
+
+    const now = Date.now();
+    const twoDaysAgo = now - 48 * 60 * 60 * 1000;
+
+    let items = activeSurveys.map((survey) => {
+      const surveyResponses = db.responses.filter((r) => r.surveyId === survey.id);
+      const surveyQuestions = db.questions.filter((q) => q.surveyId === survey.id);
+      const recentResponsesCount = surveyResponses.filter(
+        (r) => new Date(r.submittedAt).getTime() >= twoDaysAgo
+      ).length;
+
+      // Scoring formula: recent velocity * 3 + total count
+      const score = recentResponsesCount * 3 + surveyResponses.length * 1;
+      const unlockStatus = checkResultsUnlockStatus(
+        survey.resultsUnlockConfig,
+        surveyResponses.length
+      );
+
+      return {
+        ...survey,
+        responsesCount: surveyResponses.length,
+        questionsCount: surveyQuestions.length,
+        unlockStatus,
+        score,
+        isHot: score >= 10 || recentResponsesCount >= 5,
+      };
+    });
+
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      items = items.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q))
+      );
+    }
+
+    if (tab === 'personality') {
+      items = items.filter((s) => s.surveyType === 'personality');
+      items.sort((a, b) => b.score - a.score);
+    } else if (tab === 'poll') {
+      items = items.filter((s) => s.surveyType === 'poll');
+      items.sort((a, b) => b.score - a.score);
+    } else if (tab === 'newest') {
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else {
+      // 'hot'
+      items.sort((a, b) => b.score - a.score);
+    }
+
+    return items;
   }
 
   async getSurveyById(id: string): Promise<Survey | null> {
@@ -384,12 +548,21 @@ class SurveyRepository {
     title: string;
     description?: string;
     creatorId: string;
+    surveyType?: 'poll' | 'personality';
+    visibility?: 'public' | 'respondents_only' | 'private';
+    personalityArchetypes?: PersonalityArchetype[];
+    coinsReward?: number;
     resultsUnlockConfig: ResultsUnlockConfig;
     questions: Array<{
       text: string;
       isDemographicFlag: boolean;
       demographicType?: string;
-      options: Array<{ id: string; text: string; nextQuestionId?: string }>;
+      options: Array<{
+        id: string;
+        text: string;
+        nextQuestionId?: string;
+        archetypeWeights?: Record<string, number>;
+      }>;
     }>;
   }): Promise<{ success: boolean; survey?: Survey; error?: string }> {
     const db = this.getDB();
@@ -408,6 +581,10 @@ class SurveyRepository {
       creatorId: data.creatorId,
       title: data.title.trim(),
       description: data.description?.trim() || '',
+      surveyType: data.surveyType || 'poll',
+      visibility: data.visibility || 'public',
+      personalityArchetypes: data.personalityArchetypes || [],
+      coinsReward: data.coinsReward ?? 10,
       status: 'active',
       resultsUnlockConfig: data.resultsUnlockConfig,
       createdAt: new Date(),
@@ -428,6 +605,7 @@ class SurveyRepository {
           id: opt.id || `opt_${qId}_${optIdx + 1}`,
           text: opt.text.trim(),
           nextQuestionId: opt.nextQuestionId || undefined,
+          archetypeWeights: opt.archetypeWeights || undefined,
         })),
         orderIndex: idx,
       };
@@ -504,7 +682,7 @@ class SurveyRepository {
       .sort((a, b) => a.orderIndex - b.orderIndex);
   }
 
-  // --- Responses & Deduplication ---
+  // --- Responses, Deduplication & Identity Clustering ---
   async getResponsesBySurvey(surveyId: string): Promise<Response[]> {
     return this.getDB().responses.filter((r) => r.surveyId === surveyId);
   }
@@ -523,13 +701,21 @@ class SurveyRepository {
     timezone?: string | null;
     deviceType?: string | null;
     browserLanguage?: string | null;
+    resultArchetypeId?: string | null;
   }): Promise<{
     success: boolean;
     response?: Response;
     deduplication?: DeduplicationCheckResult;
+    earnedCoins?: number;
+    resultArchetypeId?: string | null;
     error?: string;
   }> {
     const db = this.getDB();
+
+    const survey = db.surveys.find((s) => s.id === params.surveyId);
+    if (!survey) {
+      return { success: false, error: 'Survey not found' };
+    }
 
     // 1. Multi-factor deduplication check
     const dedup = checkDuplicateResponse(db.responses, {
@@ -548,12 +734,81 @@ class SurveyRepository {
       };
     }
 
-    // 2. Insert new response with location and environment metadata
+    // 2. Identity Clustering (cross-survey device and organic identification)
+    let matchedCluster = db.identityClusters.find(
+      (c) =>
+        c.primaryIpHash === params.ipHash ||
+        c.fingerprintHashes.includes(params.fingerprintHash) ||
+        c.sessionCookies.includes(params.sessionCookie)
+    );
+
+    if (matchedCluster) {
+      if (!matchedCluster.fingerprintHashes.includes(params.fingerprintHash)) {
+        matchedCluster.fingerprintHashes.push(params.fingerprintHash);
+      }
+      if (!matchedCluster.sessionCookies.includes(params.sessionCookie)) {
+        matchedCluster.sessionCookies.push(params.sessionCookie);
+      }
+      if (!matchedCluster.surveyIds.includes(params.surveyId)) {
+        matchedCluster.surveyIds.push(params.surveyId);
+      }
+      matchedCluster.totalResponsesCount += 1;
+      matchedCluster.lastSeenAt = new Date();
+    } else {
+      matchedCluster = {
+        clusterId: `cluster_${Math.random().toString(36).substring(2, 9)}`,
+        primaryIpHash: params.ipHash,
+        fingerprintHashes: [params.fingerprintHash],
+        sessionCookies: [params.sessionCookie],
+        surveyIds: [params.surveyId],
+        totalResponsesCount: 1,
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+      };
+      db.identityClusters.push(matchedCluster);
+    }
+
+    const totalClusterResponses = matchedCluster.totalResponsesCount;
+    const activityTier =
+      totalClusterResponses <= 1
+        ? 'newcomer'
+        : totalClusterResponses <= 4
+        ? 'engaged'
+        : 'power_respondent';
+
+    const organicCohort = {
+      activityTier,
+      deviceClass: params.deviceType || 'desktop',
+      geoRegion: params.country || 'US',
+      isReturning: totalClusterResponses > 1,
+      clusterId: matchedCluster.clusterId,
+    };
+
+    // 3. Personality test outcome calculation if personality test
+    let resolvedArchetypeId = params.resultArchetypeId || null;
+    if (
+      !resolvedArchetypeId &&
+      survey.surveyType === 'personality' &&
+      survey.personalityArchetypes?.length > 0
+    ) {
+      const questions = db.questions.filter((q) => q.surveyId === params.surveyId);
+      const outcome = calculatePersonalityOutcome(
+        questions,
+        params.answers,
+        survey.personalityArchetypes
+      );
+      resolvedArchetypeId = outcome.winningArchetype?.id || null;
+    }
+
+    // 4. Insert new response with location and environment metadata
+    const earnedCoins = survey.coinsReward || 10;
     const newResponse: Response = {
       id: `resp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       surveyId: params.surveyId,
       userId: params.userId || null,
       answers: params.answers,
+      resultArchetypeId: resolvedArchetypeId,
+      earnedCoins,
       sessionCookie: params.sessionCookie,
       ipHash: params.ipHash,
       fingerprintHash: params.fingerprintHash,
@@ -564,25 +819,227 @@ class SurveyRepository {
       timezone: params.timezone || 'UTC',
       deviceType: params.deviceType || 'desktop',
       browserLanguage: params.browserLanguage || 'en',
+      organicCohort,
       submittedAt: new Date(),
     };
 
     db.responses.push(newResponse);
 
-    // 3. Check threshold unlock status
-    const survey = db.surveys.find((s) => s.id === params.surveyId);
-    if (survey && survey.resultsUnlockConfig.type === 'threshold') {
-      const count = db.responses.filter((r) => r.surveyId === params.surveyId).length;
+    // 5. Coin Awarding for authenticated respondent
+    if (params.userId) {
+      const user = db.users.find((u) => u.id === params.userId);
+      if (user) {
+        user.coinsBalance = (user.coinsBalance || 0) + earnedCoins;
+        db.coinTransactions.push({
+          id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          userId: user.id,
+          amount: earnedCoins,
+          type: 'survey_completion',
+          description: `Completed survey: ${survey.title}`,
+          surveyId: survey.id,
+          createdAt: new Date(),
+        });
+      }
+    }
+
+    // 6. Creator Milestone Check (Reward creator every 10 responses on this survey)
+    const surveyResponsesCount = db.responses.filter((r) => r.surveyId === params.surveyId).length;
+    if (surveyResponsesCount % 10 === 0) {
+      const creator = db.users.find((u) => u.id === survey.creatorId);
+      if (creator) {
+        const milestoneReward = 25;
+        creator.coinsBalance = (creator.coinsBalance || 0) + milestoneReward;
+        db.coinTransactions.push({
+          id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          userId: creator.id,
+          amount: milestoneReward,
+          type: 'creator_milestone',
+          description: `Creator milestone: ${surveyResponsesCount} responses on "${survey.title}"`,
+          surveyId: survey.id,
+          createdAt: new Date(),
+        });
+      }
+    }
+
+    // 7. Check threshold unlock status
+    if (survey.resultsUnlockConfig.type === 'threshold') {
       if (
         survey.resultsUnlockConfig.thresholdCount &&
-        count >= survey.resultsUnlockConfig.thresholdCount
+        surveyResponsesCount >= survey.resultsUnlockConfig.thresholdCount
       ) {
         survey.resultsUnlockConfig.unlocked = true;
       }
     }
 
     this.saveDatabase();
-    return { success: true, response: newResponse };
+    return {
+      success: true,
+      response: newResponse,
+      earnedCoins,
+      resultArchetypeId: resolvedArchetypeId,
+    };
+  }
+
+  // --- {{coins}} & Ledger ---
+  async getUserCoins(
+    userId: string
+  ): Promise<{ balance: number; transactions: CoinTransaction[]; canClaimDaily: boolean }> {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    const balance = user ? user.coinsBalance || 0 : 0;
+    const transactions = db.coinTransactions
+      .filter((tx) => tx.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 50);
+
+    // Check if user claimed daily streak within last 24h
+    const lastDaily = transactions.find((tx) => tx.type === 'daily_streak');
+    const canClaimDaily = !lastDaily || (Date.now() - new Date(lastDaily.createdAt).getTime() > 24 * 60 * 60 * 1000);
+
+    return { balance, transactions, canClaimDaily };
+  }
+
+  async awardCoins(
+    userId: string,
+    amount: number,
+    type: 'survey_completion' | 'creator_milestone' | 'bonus' | 'daily_streak' | 'perk_redemption',
+    description: string,
+    surveyId?: string
+  ): Promise<number> {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return 0;
+
+    user.coinsBalance = Math.max(0, (user.coinsBalance || 0) + amount);
+    db.coinTransactions.push({
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userId,
+      amount,
+      type,
+      description,
+      surveyId: surveyId || null,
+      createdAt: new Date(),
+    });
+    this.saveDatabase();
+    return user.coinsBalance;
+  }
+
+  async claimDailyBonus(userId: string): Promise<{ success: boolean; newBalance: number; error?: string }> {
+    const { canClaimDaily } = await this.getUserCoins(userId);
+    if (!canClaimDaily) {
+      return { success: false, newBalance: 0, error: 'Daily streak bonus already claimed for today. Come back tomorrow!' };
+    }
+    const bonusAmount = 10;
+    const newBalance = await this.awardCoins(
+      userId,
+      bonusAmount,
+      'daily_streak',
+      'Daily Participation & Streak Reward (+10 {{coins}})'
+    );
+    return { success: true, newBalance };
+  }
+
+  async redeemPerk(
+    userId: string,
+    perkCost: number,
+    perkTitle: string,
+    surveyId?: string
+  ): Promise<{ success: boolean; newBalance: number; error?: string }> {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return { success: false, newBalance: 0, error: 'User not found' };
+
+    if ((user.coinsBalance || 0) < perkCost) {
+      return { success: false, newBalance: user.coinsBalance || 0, error: `Insufficient {{coins}}. You need ${perkCost} {{coins}} for this perk.` };
+    }
+
+    const newBalance = await this.awardCoins(
+      userId,
+      -perkCost,
+      'perk_redemption',
+      `Redeemed Perk: ${perkTitle}`,
+      surveyId
+    );
+    return { success: true, newBalance };
+  }
+
+  // --- Cross-Survey & Personality Insights ---
+  async getCrossSurveyStats(surveyId: string): Promise<{
+    totalRespondents: number;
+    returningRespondentsPercent: number;
+    powerRespondentsPercent: number;
+  }> {
+    const db = this.getDB();
+    const surveyResponses = db.responses.filter((r) => r.surveyId === surveyId);
+    const total = surveyResponses.length;
+    if (total === 0) {
+      return {
+        totalRespondents: 0,
+        returningRespondentsPercent: 0,
+        powerRespondentsPercent: 0,
+      };
+    }
+
+    let returningCount = 0;
+    let powerCount = 0;
+
+    surveyResponses.forEach((r) => {
+      const cohort = r.organicCohort as any;
+      if (cohort?.isReturning) returningCount++;
+      if (cohort?.activityTier === 'power_respondent') powerCount++;
+    });
+
+    return {
+      totalRespondents: total,
+      returningRespondentsPercent: Math.round((returningCount / total) * 100),
+      powerRespondentsPercent: Math.round((powerCount / total) * 100),
+    };
+  }
+
+  async getPersonalityDistribution(
+    surveyId: string
+  ): Promise<
+    Array<{
+      archetypeId: string;
+      title: string;
+      description: string;
+      badgeColor: string;
+      count: number;
+      percentage: number;
+    }>
+  > {
+    const db = this.getDB();
+    const survey = db.surveys.find((s) => s.id === surveyId);
+    if (!survey || survey.surveyType !== 'personality' || !survey.personalityArchetypes) {
+      return [];
+    }
+
+    const responses = db.responses.filter((r) => r.surveyId === surveyId);
+    const total = responses.length;
+
+    const counts: Record<string, number> = {};
+    survey.personalityArchetypes.forEach((arch) => {
+      counts[arch.id] = 0;
+    });
+
+    responses.forEach((r) => {
+      if (r.resultArchetypeId && counts[r.resultArchetypeId] !== undefined) {
+        counts[r.resultArchetypeId]++;
+      }
+    });
+
+    return survey.personalityArchetypes.map((arch) => {
+      const count = counts[arch.id] || 0;
+      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+      return {
+        archetypeId: arch.id,
+        title: arch.title,
+        description: arch.description,
+        badgeColor: arch.badgeColor || 'blue',
+        count,
+        percentage,
+      };
+    });
   }
 
   // --- Subscriptions ---
@@ -641,6 +1098,10 @@ class SurveyRepository {
     totalSurveys: number;
     totalResponses: number;
     activeSurveysCount: number;
+    totalCoinsInCirculation: number;
+    identityClustersCount: number;
+    personalityCount: number;
+    pollCount: number;
   }> {
     const db = this.getDB();
     return {
@@ -648,6 +1109,10 @@ class SurveyRepository {
       totalSurveys: db.surveys.length,
       totalResponses: db.responses.length,
       activeSurveysCount: db.surveys.filter((s) => s.status === 'active').length,
+      totalCoinsInCirculation: db.users.reduce((acc, u) => acc + (u.coinsBalance || 0), 0),
+      identityClustersCount: (db.identityClusters || []).length,
+      personalityCount: db.surveys.filter((s) => s.surveyType === 'personality').length,
+      pollCount: db.surveys.filter((s) => s.surveyType !== 'personality').length,
     };
   }
 }

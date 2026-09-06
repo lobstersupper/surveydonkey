@@ -309,7 +309,10 @@ export const ConsensusDashboard: React.FC<ConsensusDashboardProps> = ({
             </div>
 
             {/* Recharts Horizontal Bar Chart */}
-            <div className="h-64 w-full pt-2">
+            <div
+              className="w-full pt-2"
+              style={{ height: `${Math.max(220, data.length * 48)}px` }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={data}

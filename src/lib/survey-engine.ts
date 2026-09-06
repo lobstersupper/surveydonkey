@@ -74,3 +74,68 @@ export function getQuestionExecutionPath(
 
   return path;
 }
+
+import { PersonalityArchetype } from '@/db/schema';
+
+export interface PersonalityOutcomeResult {
+  winningArchetype: PersonalityArchetype | null;
+  scores: Record<string, number>;
+  percentages: Record<string, number>;
+  totalScore: number;
+}
+
+/**
+ * Calculates personality outcome by accumulating option archetype weights.
+ */
+export function calculatePersonalityOutcome(
+  questions: Question[],
+  answers: Record<string, string>,
+  archetypes: PersonalityArchetype[]
+): PersonalityOutcomeResult {
+  const scores: Record<string, number> = {};
+  for (const arch of archetypes) {
+    scores[arch.id] = 0;
+  }
+
+  let totalScore = 0;
+
+  for (const q of questions) {
+    const selectedOptionId = answers[q.id];
+    if (!selectedOptionId) continue;
+
+    const options = (q.options || []) as QuestionOption[];
+    const selected = options.find((opt) => opt.id === selectedOptionId);
+    if (selected?.archetypeWeights) {
+      for (const [archId, weight] of Object.entries(selected.archetypeWeights)) {
+        scores[archId] = (scores[archId] || 0) + Number(weight);
+        totalScore += Number(weight);
+      }
+    }
+  }
+
+  // Calculate percentages
+  const percentages: Record<string, number> = {};
+  for (const arch of archetypes) {
+    percentages[arch.id] = totalScore > 0 ? Math.round(((scores[arch.id] || 0) / totalScore) * 100) : 0;
+  }
+
+  // Determine winning archetype
+  let highestScore = -1;
+  let winningArch: PersonalityArchetype | null = null;
+
+  for (const arch of archetypes) {
+    const score = scores[arch.id] || 0;
+    if (score > highestScore) {
+      highestScore = score;
+      winningArch = arch;
+    }
+  }
+
+  return {
+    winningArchetype: winningArch || archetypes[0] || null,
+    scores,
+    percentages,
+    totalScore,
+  };
+}
+
