@@ -71,12 +71,23 @@ export const PersonalityDistributionChart: React.FC<PersonalityDistributionChart
         >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
-              <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                unit="%"
+                stroke="currentColor"
+                className="text-slate-400 font-mono text-[11px]"
+                tickLine={false}
+                axisLine={false}
+              />
               <YAxis
                 dataKey="name"
                 type="category"
-                width={150}
-                tick={{ fontSize: 12, fontWeight: 500, fill: '#334155' }}
+                width={155}
+                stroke="currentColor"
+                className="text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                tickLine={false}
+                axisLine={false}
               />
               <Tooltip
                 formatter={(val: any, name: any, item: any) => [
