@@ -60,6 +60,19 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const shareToReddit = () => {
+    const url = `https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(
+      defaultShareText
+    )}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const shareToEmail = () => {
+    const subject = encodeURIComponent(`Survey Donkey: ${surveyTitle}`);
+    const body = encodeURIComponent(`${defaultShareText}\n\n${shareUrl}`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
   const shareToLinkedIn = () => {
     const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
       shareUrl
@@ -183,7 +196,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   Share To Community
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <button
                     onClick={shareToTwitter}
                     className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors"
@@ -201,6 +214,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     className="flex items-center justify-center gap-2 py-2 px-3 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
                   >
                     LinkedIn
+                  </button>
+                  <button
+                    onClick={shareToReddit}
+                    className="flex items-center justify-center gap-2 py-2 px-3 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/50 dark:hover:bg-orange-900/50 text-orange-800 dark:text-orange-300 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    Reddit
+                  </button>
+                  <button
+                    onClick={shareToEmail}
+                    className="flex items-center justify-center gap-2 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 rounded-lg text-xs font-semibold transition-colors col-span-2 sm:col-span-1"
+                  >
+                    Email
                   </button>
                 </div>
               </div>
